@@ -25,8 +25,10 @@ Body:
 Always register customers with `"role": "buyer"`.
 Response `200`:
 ```json
-{ "token": "jwt", "user": { "id": "guid", "name": "string", "email": "string", "role": "buyer" } }
+{ "token": "jwt", "user": { "id": "guid", "name": "string", "email": "string", "role": "buyer", "mustChangePassword": false } }
 ```
+
+On success, the backend also emails the buyer a welcome message confirming their login email/password and linking to the Play Store / App Store listings — no app action needed to trigger it, but it's worth mentioning in the UI ("check your email for a copy of your login details"). `mustChangePassword` is always `false` here since the buyer chose their own password; it only ever comes back `true` for an admin-issued account (not a buyer flow).
 
 ### POST /auth/login
 Body: `{ "email": "string", "password": "string" }`

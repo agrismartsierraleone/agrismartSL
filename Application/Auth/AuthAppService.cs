@@ -39,6 +39,8 @@ public class AuthAppService(
 
         await auditLogAppService.LogAsync(user.Id, user.Email, "UserRegistered", user.Id, $"Self-registered as {user.Role}.", cancellationToken);
 
+        await userNotificationService.SendAccountCreatedEmailAsync(user, request.Password, isTemporaryPassword: false, cancellationToken);
+
         return BuildAuthResponse(user);
     }
 

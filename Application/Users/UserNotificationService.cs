@@ -9,19 +9,31 @@ namespace AgrismartAPI.Application.Users;
 /// <summary>Sends account lifecycle emails (new account credentials, credential/role changes) via <see cref="IEmailSender"/>.</summary>
 public class UserNotificationService(IEmailSender emailSender, IOptions<AppLinksSettings> appLinks)
 {
-    public Task SendAccountCreatedEmailAsync(User user, string temporaryPassword, CancellationToken cancellationToken = default)
+    /// <param name="isTemporaryPassword">
+    /// True for an admin-issued password (via <c>POST /users</c> or a credentials reset) — the email
+    /// says it's temporary and expires in <see cref="User.TemporaryPasswordLifetime"/>. False for a
+    /// buyer's own self-chosen password from <c>POST /auth/register</c> — it's just a welcome/confirmation.
+    /// </param>
+    public Task SendAccountCreatedEmailAsync(User user, string password, bool isTemporaryPassword, CancellationToken cancellationToken = default)
     {
         var subject = "Your AgrismartAPI account has been created";
+        var intro = isTemporaryPassword
+            ? $"An account has been created for you on AgrismartAPI as a <strong>{Encode(user.Role.ToString())}</strong>."
+            : "Welcome to AgrismartAPI! Your account has been created.";
+        var expiryNote = isTemporaryPassword
+            ? $"<p>This is a <strong>temporary password</strong> and expires {Hours(User.TemporaryPasswordLifetime)} hours after this email is sent. You'll be required to set your own password the first time you log in — if it expires first, ask an administrator to reset it.</p>"
+            : "<p>Keep this password safe. You can change it any time from within the app.</p>";
+
         var html = $"""
             <p>Hello {Encode(user.Name)},</p>
-            <p>An account has been created for you on AgrismartAPI as a <strong>{Encode(user.Role.ToString())}</strong>.</p>
+            <p>{intro}</p>
             <p>Use the credentials below to log in:</p>
             <ul>
                 <li><strong>Email:</strong> {Encode(user.Email)}</li>
-                <li><strong>Temporary password:</strong> {Encode(temporaryPassword)}</li>
+                <li><strong>Password:</strong> {Encode(password)}</li>
             </ul>
-            {LoginLinkHtml()}
-            <p>This is a <strong>temporary password</strong> and expires {Hours(User.TemporaryPasswordLifetime)} hours after this email is sent. You'll be required to set your own password the first time you log in — if it expires first, ask an administrator to reset it.</p>
+            {AccessLinksHtml(user.Role)}
+            {expiryNote}
             """;
 
         return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
@@ -36,7 +48,7 @@ public class UserNotificationService(IEmailSender emailSender, IOptions<AppLinks
             <p>The following changes were made to your AgrismartAPI account:</p>
             <ul>{changeList}</ul>
             <p>If you did not request this change, please contact an administrator immediately.</p>
-            {LoginLinkHtml()}
+            {AccessLinksHtml(user.Role)}
             """;
 
         return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
@@ -54,12 +66,31 @@ public class UserNotificationService(IEmailSender emailSender, IOptions<AppLinks
         return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
     }
 
-    private string LoginLinkHtml()
+    /// <summary>Sellers/Admins use the web admin app (login link); Buyers use the mobile app (store links).</summary>
+    private string AccessLinksHtml(UserRole role)
     {
-        var loginUrl = appLinks.Value.LoginUrl;
-        return string.IsNullOrWhiteSpace(loginUrl)
+        if (role != UserRole.Buyer)
+        {
+            var loginUrl = appLinks.Value.LoginUrl;
+            return string.IsNullOrWhiteSpace(loginUrl)
+                ? string.Empty
+                : $"""<p><a href="{Encode(loginUrl)}">Log in to AgrismartAPI</a></p>""";
+        }
+
+        var links = new List<string>();
+        if (!string.IsNullOrWhiteSpace(appLinks.Value.PlayStoreUrl))
+        {
+            links.Add($"""<a href="{Encode(appLinks.Value.PlayStoreUrl)}">Get it on Google Play (Android)</a>""");
+        }
+
+        if (!string.IsNullOrWhiteSpace(appLinks.Value.AppStoreUrl))
+        {
+            links.Add($"""<a href="{Encode(appLinks.Value.AppStoreUrl)}">Download on the App Store (iOS)</a>""");
+        }
+
+        return links.Count == 0
             ? string.Empty
-            : $"""<p><a href="{Encode(loginUrl)}">Log in to AgrismartAPI</a></p>""";
+            : $"<p>Download the AgrismartAPI app to log in: {string.Join(" &nbsp;|&nbsp; ", links)}</p>";
     }
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);

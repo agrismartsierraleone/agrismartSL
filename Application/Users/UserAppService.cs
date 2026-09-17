@@ -50,7 +50,7 @@ public class UserAppService(
             $"Created {user.Role} account for '{user.Email}'.",
             cancellationToken);
 
-        await userNotificationService.SendAccountCreatedEmailAsync(user, request.Password, cancellationToken);
+        await userNotificationService.SendAccountCreatedEmailAsync(user, request.Password, isTemporaryPassword: true, cancellationToken);
 
         return ToDto(user);
     }

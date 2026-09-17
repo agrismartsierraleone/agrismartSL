@@ -164,11 +164,13 @@ The backend sends transactional email (via SendGrid) on the account actions belo
 
 | Trigger | Email sent to | Contents |
 |---|---|---|
-| `POST /users` (any role, incl. seller) | the new user | Their email, the temporary password just set, their role, the login URL, and a note that it expires in 24 hours |
-| `PUT /users/{id}/role` (role actually changes) | the affected user | Notice that their role changed, and the login URL |
-| `PUT /users/{id}/credentials` (any field actually changes) | the affected user | A bullet list of what changed (name/email/password) and the login URL |
+| `POST /users` (any role, incl. seller) | the new user | Their email, the temporary password just set, their role, an access link, and a note that it expires in 24 hours |
+| `PUT /users/{id}/role` (role actually changes) | the affected user | Notice that their role changed, and an access link |
+| `PUT /users/{id}/credentials` (any field actually changes) | the affected user | A bullet list of what changed (name/email/password) and an access link |
 | `POST /auth/change-password` | the user themselves | Confirmation that their password was changed (sent even though they made the change) |
 | `DELETE /users/{id}` | the deleted user | Notice that their account was deleted and they can no longer log in |
+
+"Access link" is role-aware: Sellers and Admins get the web login URL (they use this admin app); a Buyer created via `POST /users` gets Play Store / App Store links instead, since buyers use the mobile app. Buyers who self-register via `POST /auth/register` (mobile-only, see `README.mobile.md`) get the same welcome-with-credentials email, but without the temporary-password/24h-expiry language, since they chose their own permanent password.
 
 There's no "resend welcome email" endpoint — if a seller says they didn't get it (or their temporary password expired), an admin can re-issue one by making a `PUT /users/{id}/credentials` call with a `newPassword` — this both sets a fresh 24-hour temporary password and re-sends a credentials-style notice.
 

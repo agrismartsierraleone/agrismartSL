@@ -9,6 +9,7 @@ using AgrismartAPI.Infrastructure.Persistence;
 using AgrismartAPI.Middleware;
 using AgrismartAPI.OpenApi;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -64,6 +65,19 @@ builder.Services.AddOpenApi(options =>
 });
 
 var app = builder.Build();
+
+// Render (and most PaaS hosts) terminate TLS at the edge and forward requests to the
+// container as plain HTTP. Without this, ASP.NET Core thinks every request is HTTP,
+// which makes the generated OpenAPI document (and Swagger UI's base URL) advertise
+// "http://..." even though the public-facing URL is HTTPS. Trusting the
+// X-Forwarded-Proto/X-Forwarded-For headers fixes scheme detection everywhere.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownIPNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 // Apply pending migrations and seed catalogue data on startup.
 using (var scope = app.Services.CreateScope())

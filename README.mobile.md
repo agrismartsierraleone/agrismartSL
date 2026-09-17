@@ -85,6 +85,37 @@ expires after **2 minutes**, so sign and submit immediately after the biometric 
 after uninstall/reinstall or the user removed all fingerprints): `DELETE /auth/biometric/{deviceId}`
 — requires `Authorization: Bearer <token>`. Response: `204 No Content`.
 
+### Reset / forgot password
+
+There is **no "forgot password" email-link flow** — a buyer can only change their password while
+logged in. Design the UI around these two cases:
+
+**1. Buyer knows their current password** (e.g. changing it voluntarily from a settings screen):
+
+```json
+// POST /auth/change-password  (Authorize: Bearer <token>)
+{ "currentPassword": "string", "newPassword": "string (min 8 chars)" }
+```
+`204` on success. `400` if `currentPassword` doesn't match or `newPassword` is too short.
+
+**2. Buyer has forgotten their password** (can't log in to get a token): there's currently no
+self-serve reset in the app itself. The only path is asking support/an admin to reset it for them
+from the admin console — this issues a new **temporary password that's emailed to the buyer and
+expires in 24 hours**. Until that support flow exists in-app, a "Forgot password?" link on the
+login screen should just point the user to a support contact (email/phone), not a form.
+
+Once the buyer has that temporary password:
+- `POST /auth/login` with it succeeds normally (as long as it's used within 24 hours) and the
+  response comes back with `user.mustChangePassword: true`. When you see that flag, route straight
+  to a "set a new password" screen — don't let the user into the rest of the app first.
+- If more than 24 hours have passed before they log in, `POST /auth/login` returns `400` ("Your
+  temporary password has expired. Ask an administrator to reset it.") — they need to ask
+  support/admin for a fresh one.
+- To finish the reset, call the same `POST /auth/change-password` endpoint from case 1, passing the
+  temporary password as `currentPassword`. `mustChangePassword` clears after this and the buyer logs
+  in normally with their new password from then on. They also get a confirmation email that their
+  credentials changed.
+
 ---
 
 ## Browse Products — `/products`

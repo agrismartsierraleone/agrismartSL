@@ -25,10 +25,24 @@ Tokens expire in **10 minutes**. There's no refresh endpoint — on a `401`, red
 ```
 Response:
 ```json
-{ "token": "jwt", "user": { "id": "guid", "name": "string", "email": "string", "role": "seller | admin" } }
+{ "token": "jwt", "user": { "id": "guid", "name": "string", "email": "string", "role": "seller | admin", "mustChangePassword": false } }
 ```
 
 Decode the JWT (or use the `user.role` from login) to drive which sections of the Angular app to show — a Seller should only see Product Management for their own products; an Admin sees everything.
+
+### First login / forced password reset
+
+When an admin creates a seller (or any account) via `POST /users`, or resets an existing user's password via `PUT /users/{id}/credentials`, the password they set is **temporary and expires 24 hours after it's issued**. The user gets it by email along with the login URL (see [Account emails](#account-emails)).
+
+- `POST /auth/login` with that temporary password succeeds normally **as long as it hasn't expired**, and the response has `user.mustChangePassword: true`. Route straight to a "set a new password" screen when you see this — don't let the user into the rest of the app first.
+- If the 24-hour window has passed before they log in, `POST /auth/login` returns **`400`** ("Your temporary password has expired. Ask an administrator to reset it.") instead of a token — the user needs an admin to issue a fresh one via `PUT /users/{id}/credentials`.
+- To complete the reset (or for any voluntary password change later), call:
+
+```json
+// POST /auth/change-password  (Authorize: Bearer <token from login>)
+{ "currentPassword": "string", "newPassword": "string (min 8 chars)" }
+```
+`204` on success — `400` if `currentPassword` doesn't match or `newPassword` is too short. After this call, `mustChangePassword` is cleared and the temporary password stops being relevant; the user just logs in normally with their new password going forward. The user also gets a "your credentials were updated" email as confirmation.
 
 ---
 
@@ -131,10 +145,12 @@ Sellers get `403` on create/update/delete — tutorial content is Admin-only.
 | PUT | `/users/{id}/credentials` | Admin |
 | DELETE | `/users/{id}` | Admin |
 
-`UserSummaryDto`: `{ "id", "name", "email", "role", "createdAt" }`
+`UserSummaryDto`: `{ "id", "name", "email", "role", "createdAt", "mustChangePassword", "passwordExpiresAt": "iso date | null" }`
 Create user body: `{ "name", "email", "password" (min 8 chars), "role": "buyer | seller | admin" }`
 Change role body: `{ "role": "buyer | seller | admin" }`
-Update credentials body: `{ "name": "string?", "email": "string?", "newPassword": "string? (min 8 chars)" }` — send only the fields being changed; omitted/blank fields are left as-is. Returns `200` with the updated `UserSummaryDto` even if nothing changed (no email/audit entry is generated in that case).
+Update credentials body: `{ "name": "string?", "email": "string?", "newPassword": "string? (min 8 chars)" }` — send only the fields being changed; omitted/blank fields are left as-is. Returns `200` with the updated `UserSummaryDto` even if nothing changed (no email/audit entry is generated in that case). Setting `newPassword` here always issues it as a fresh 24-hour temporary password (`mustChangePassword` flips back to `true`) — same as a brand-new account.
+
+Use `mustChangePassword` / `passwordExpiresAt` in the users grid to show something like "Pending first login (expires in 6h)" for accounts still on their temporary password — helpful for an admin chasing up a seller who hasn't logged in yet.
 
 `DELETE /users/{id}` permanently removes the account (`204` on success). Two guardrails to surface in the UI, both come back as normal error responses (see Error format below), not crashes:
 - **`400`** — an admin cannot delete their own account. Disable/hide the delete action on the currently-logged-in admin's own row.
@@ -148,12 +164,13 @@ The backend sends transactional email (via SendGrid) on the account actions belo
 
 | Trigger | Email sent to | Contents |
 |---|---|---|
-| `POST /users` (any role, incl. seller) | the new user | Their email, the plaintext password just set, their role, and the login URL |
+| `POST /users` (any role, incl. seller) | the new user | Their email, the temporary password just set, their role, the login URL, and a note that it expires in 24 hours |
 | `PUT /users/{id}/role` (role actually changes) | the affected user | Notice that their role changed, and the login URL |
 | `PUT /users/{id}/credentials` (any field actually changes) | the affected user | A bullet list of what changed (name/email/password) and the login URL |
+| `POST /auth/change-password` | the user themselves | Confirmation that their password was changed (sent even though they made the change) |
 | `DELETE /users/{id}` | the deleted user | Notice that their account was deleted and they can no longer log in |
 
-There's no "resend welcome email" endpoint — if a seller says they didn't get it, an admin can trigger an equivalent email by making a no-op-looking `PUT /users/{id}/credentials` call with a `newPassword` (this both resets their password and re-sends credentials-style notice).
+There's no "resend welcome email" endpoint — if a seller says they didn't get it (or their temporary password expired), an admin can re-issue one by making a `PUT /users/{id}/credentials` call with a `newPassword` — this both sets a fresh 24-hour temporary password and re-sends a credentials-style notice.
 
 ---
 
@@ -169,7 +186,9 @@ Read-only activity trail for compliance/support — surface it as a simple admin
 
 Returned newest-first, unpaginated today. `action` is one of a fixed set of strings — treat it as an enum for filtering/badges in the UI:
 
-`UserRegistered, UserLoggedIn, UserCreated, UserRoleChanged, UserCredentialsUpdated, UserDeleted, SellerCreated, SellerUpdated, SellerDeleted`
+`UserRegistered, UserLoggedIn, UserCreated, UserRoleChanged, UserCredentialsUpdated, UserPasswordReset, UserDeleted, SellerCreated, SellerUpdated, SellerDeleted`
+
+`UserPasswordReset` is logged when the user completes their own password change via `POST /auth/change-password` (the actor and target are the same user) — distinct from `UserCredentialsUpdated`, which is an admin acting on someone else's account via `PUT /users/{id}/credentials`.
 
 `actorUserId`/`actorEmail` identify who performed the action (for self-service actions like login/register, the actor is the user themselves); `targetUserId` identifies the affected user, when applicable.
 

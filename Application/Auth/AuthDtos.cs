@@ -6,9 +6,13 @@ public record RegisterRequest(string Name, string Email, string Password, UserRo
 
 public record LoginRequest(string Email, string Password);
 
-public record UserDto(Guid Id, string Name, string Email, UserRole Role);
+/// <summary>When <paramref name="MustChangePassword"/> is true, the frontend should route straight to a "set a new password" screen after login.</summary>
+public record UserDto(Guid Id, string Name, string Email, UserRole Role, bool MustChangePassword);
 
 public record AuthResponse(string Token, UserDto User);
+
+/// <summary>Self-service password change — used both for a voluntary change and for the forced first-login reset of an admin-issued temporary password.</summary>
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 /// <summary>Registers (or replaces) the calling device's biometric public key. Sent once, right after a normal password login, with the JWT that login returned.</summary>
 public record BiometricRegisterRequest(string DeviceId, string PublicKey);

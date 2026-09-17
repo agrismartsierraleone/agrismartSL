@@ -23,6 +23,15 @@ public class AuthController(AuthAppService authAppService, ICurrentUserService c
         return Ok(response);
     }
 
+    /// <summary>Self-service password change. If login returned "mustChangePassword": true (e.g. an admin-issued temporary password), call this right after login with that temporary password as the current one.</summary>
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
+    {
+        await authAppService.ChangePasswordAsync(currentUser.UserId, request, cancellationToken);
+        return NoContent();
+    }
+
     /// <summary>Registers (or replaces) the calling device's biometric public key. Call right after a normal login, with that login's JWT.</summary>
     [Authorize]
     [HttpPost("biometric/register")]

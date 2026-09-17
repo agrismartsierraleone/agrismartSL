@@ -21,7 +21,7 @@ public class UserNotificationService(IEmailSender emailSender, IOptions<AppLinks
                 <li><strong>Temporary password:</strong> {Encode(temporaryPassword)}</li>
             </ul>
             {LoginLinkHtml()}
-            <p>For your security, please change your password after logging in for the first time.</p>
+            <p>This is a <strong>temporary password</strong> and expires {Hours(User.TemporaryPasswordLifetime)} hours after this email is sent. You'll be required to set your own password the first time you log in — if it expires first, ask an administrator to reset it.</p>
             """;
 
         return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
@@ -63,4 +63,6 @@ public class UserNotificationService(IEmailSender emailSender, IOptions<AppLinks
     }
 
     private static string Encode(string value) => WebUtility.HtmlEncode(value);
+
+    private static string Hours(TimeSpan value) => value.TotalHours.ToString("0.#");
 }

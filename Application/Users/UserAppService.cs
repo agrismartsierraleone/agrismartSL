@@ -34,7 +34,7 @@ public class UserAppService(
             throw new ConflictException("An account with this email already exists.");
         }
 
-        var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role);
+        var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role, User.TemporaryPasswordLifetime);
         await userRepository.AddAsync(user, cancellationToken);
 
         if (user.Role == UserRole.Seller)
@@ -90,8 +90,8 @@ public class UserAppService(
                 throw new ValidationException("Password must be at least 8 characters long.");
             }
 
-            user.ChangePassword(passwordHasher.Hash(request.NewPassword));
-            changes.Add("Password was changed.");
+            user.SetTemporaryPassword(passwordHasher.Hash(request.NewPassword), User.TemporaryPasswordLifetime);
+            changes.Add("Password was reset. This is a temporary password and must be changed within 24 hours.");
         }
 
         if (changes.Count == 0)
@@ -176,5 +176,5 @@ public class UserAppService(
         await userNotificationService.SendAccountDeletedEmailAsync(user, cancellationToken);
     }
 
-    private static UserSummaryDto ToDto(User user) => new(user.Id, user.Name, user.Email, user.Role, user.CreatedAt);
+    private static UserSummaryDto ToDto(User user) => new(user.Id, user.Name, user.Email, user.Role, user.CreatedAt, user.MustChangePassword, user.PasswordExpiresAt);
 }

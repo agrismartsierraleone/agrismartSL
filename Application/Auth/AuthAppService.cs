@@ -1,6 +1,7 @@
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Application.Audit;
 using AgrismartAPI.Application.Common;
+using AgrismartAPI.Application.Users;
 using AgrismartAPI.Domain.Users;
 
 namespace AgrismartAPI.Application.Auth;
@@ -12,7 +13,8 @@ public class AuthAppService(
     IJwtTokenGenerator jwtTokenGenerator,
     IBiometricChallengeStore biometricChallengeStore,
     IBiometricSignatureVerifier biometricSignatureVerifier,
-    AuditLogAppService auditLogAppService)
+    AuditLogAppService auditLogAppService,
+    UserNotificationService userNotificationService)
 {
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
@@ -48,9 +50,38 @@ public class AuthAppService(
             throw new ValidationException("Invalid email or password.");
         }
 
+        if (user.HasExpiredTemporaryPassword())
+        {
+            throw new ValidationException("Your temporary password has expired. Ask an administrator to reset it.");
+        }
+
         await auditLogAppService.LogAsync(user.Id, user.Email, "UserLoggedIn", user.Id, null, cancellationToken);
 
         return BuildAuthResponse(user);
+    }
+
+    /// <summary>Self-service password change. Also how a user completes the forced reset of an admin-issued temporary password on first login.</summary>
+    public async Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken)
+                   ?? throw new NotFoundException($"User '{userId}' was not found.");
+
+        if (!passwordHasher.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            throw new ValidationException("Current password is incorrect.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
+        {
+            throw new ValidationException("Password must be at least 8 characters long.");
+        }
+
+        user.CompletePasswordReset(passwordHasher.Hash(request.NewPassword));
+        await userRepository.UpdateAsync(user, cancellationToken);
+
+        await auditLogAppService.LogAsync(user.Id, user.Email, "UserPasswordReset", user.Id, "User set their own password.", cancellationToken);
+
+        await userNotificationService.SendCredentialsUpdatedEmailAsync(user, ["Password was changed."], cancellationToken);
     }
 
     /// <summary>Registers, or replaces, the calling device's biometric public key for the authenticated user.</summary>
@@ -129,5 +160,5 @@ public class AuthAppService(
 
     private AuthResponse BuildAuthResponse(User user) => new(
         jwtTokenGenerator.GenerateToken(user),
-        new UserDto(user.Id, user.Name, user.Email, user.Role));
+        new UserDto(user.Id, user.Name, user.Email, user.Role, user.MustChangePassword));
 }

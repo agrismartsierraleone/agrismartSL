@@ -1,4 +1,3 @@
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Domain.Users;
@@ -27,7 +26,9 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
     {
         get
         {
-            var value = httpContextAccessor.HttpContext?.User.FindFirstValue(JwtRegisteredClaimNames.Email);
+            // JwtSecurityTokenHandler remaps the "email" JWT claim to ClaimTypes.Email during
+            // validation by default, so the inbound principal never carries the raw "email" type.
+            var value = httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.Email);
             if (string.IsNullOrEmpty(value))
             {
                 throw new UnauthorizedAccessException("No authenticated user in the current request context.");

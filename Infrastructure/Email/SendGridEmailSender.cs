@@ -1,12 +1,14 @@
+using System.Net.Http.Headers;
+using System.Text;
 using AgrismartAPI.Application.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using SendGrid;
 using SendGrid.Helpers.Mail;
 
 namespace AgrismartAPI.Infrastructure.Email;
 
-public class SendGridEmailSender(IOptions<SendGridSettings> options, ILogger<SendGridEmailSender> logger) : IEmailSender
+/// <summary>Posts directly to SendGrid's v3 Mail Send API (<see cref="SendGridSettings.BaseApiUrl"/>) rather than routing through the SendGrid SDK's own HTTP client.</summary>
+public class SendGridEmailSender(HttpClient httpClient, IOptions<SendGridSettings> options, ILogger<SendGridEmailSender> logger) : IEmailSender
 {
     public async Task SendAsync(string toEmail, string toName, string subject, string htmlContent, CancellationToken cancellationToken = default)
     {
@@ -17,15 +19,20 @@ public class SendGridEmailSender(IOptions<SendGridSettings> options, ILogger<Sen
             return;
         }
 
-        var client = new SendGridClient(settings.ApiKey);
         var from = new EmailAddress(settings.FromEmail, settings.FromName);
         var to = new EmailAddress(toEmail, toName);
         var message = MailHelper.CreateSingleEmail(from, to, subject, plainTextContent: string.Empty, htmlContent);
 
-        var response = await client.SendEmailAsync(message, cancellationToken);
-        if ((int)response.StatusCode >= 400)
+        using var request = new HttpRequestMessage(HttpMethod.Post, settings.BaseApiUrl)
         {
-            var body = await response.Body.ReadAsStringAsync(cancellationToken);
+            Content = new StringContent(message.Serialize(), Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
             logger.LogError("SendGrid failed to send email to {Email}: {StatusCode} {Body}", toEmail, response.StatusCode, body);
         }
     }

@@ -15,8 +15,9 @@ Interactive docs while running: `/swagger` or `/scalar/v1`.
 
 Tokens expire in **10 minutes**. There's no refresh endpoint — on a `401`, redirect to login (an Angular `HttpInterceptor` + route guard is the natural place for this).
 
-- **Sellers** self-register with `POST /auth/register`, `"role": "seller"` — this auto-creates a linked seller profile.
-- **Admin** accounts cannot self-register (`"role": "admin"` is rejected by the API). The first admin is seeded by the backend (`admin@agrismart.local` in dev); further admins are promoted via `PUT /users/{id}/role` by an existing admin.
+- **Buyers** self-register with `POST /auth/register`, `"role": "buyer"`. Any other role sent to this endpoint is rejected — `POST /auth/register` only ever creates buyer accounts.
+- **Sellers** cannot self-register. An existing Admin creates the account via `POST /users` (`"role": "seller"`), which auto-creates a linked seller profile — the same endpoint also creates buyer accounts on an admin's behalf.
+- **Admin** accounts cannot self-register either. The first admin is seeded by the backend (`admin@agrismart.local` in dev); further admins are created via `POST /users` or promoted via `PUT /users/{id}/role` by an existing admin.
 
 ```json
 // POST /auth/login
@@ -125,12 +126,14 @@ Sellers get `403` on create/update/delete — tutorial content is Admin-only.
 | Method | Path | Role |
 |---|---|---|
 | GET | `/users` | Admin |
+| POST | `/users` | Admin |
 | PUT | `/users/{id}/role` | Admin |
 
 `UserSummaryDto`: `{ "id", "name", "email", "role", "createdAt" }`
+Create user body: `{ "name", "email", "password" (min 8 chars), "role": "buyer | seller | admin" }`
 Change role body: `{ "role": "buyer | seller | admin" }`
 
-Promoting a user to `"seller"` here auto-creates a linked seller profile for them if one doesn't already exist.
+`POST /users` is how an admin onboards a seller (or buyer) account directly — creating a user with `"role": "seller"` here, or promoting one to `"seller"` via the role endpoint, auto-creates a linked seller profile for them if one doesn't already exist.
 
 ---
 

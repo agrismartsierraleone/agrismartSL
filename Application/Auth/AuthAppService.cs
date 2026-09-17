@@ -1,13 +1,11 @@
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Application.Common;
-using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Users;
 
 namespace AgrismartAPI.Application.Auth;
 
 public class AuthAppService(
     IUserRepository userRepository,
-    ISellerRepository sellerRepository,
     IBiometricCredentialRepository biometricCredentialRepository,
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
@@ -21,9 +19,9 @@ public class AuthAppService(
             throw new ValidationException("Password must be at least 8 characters long.");
         }
 
-        if (request.Role == UserRole.Admin)
+        if (request.Role != UserRole.Buyer)
         {
-            throw new ValidationException("Admin accounts cannot be self-registered.");
+            throw new ValidationException("Only buyer accounts can self-register. Ask an administrator to create a seller or admin account.");
         }
 
         var existing = await userRepository.GetByEmailAsync(request.Email, cancellationToken);
@@ -34,11 +32,6 @@ public class AuthAppService(
 
         var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role);
         await userRepository.AddAsync(user, cancellationToken);
-
-        if (user.Role == UserRole.Seller)
-        {
-            await sellerRepository.AddAsync(Seller.Create(user.Name, user.Email, null, null, user.Id), cancellationToken);
-        }
 
         return BuildAuthResponse(user);
     }

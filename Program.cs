@@ -75,21 +75,19 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Swagger/Scalar are exposed in every environment (including Production) so the API can be explored on Render.
+app.MapOpenApi();
+
+app.UseSwaggerUI(options =>
 {
-    app.MapOpenApi();
+    options.SwaggerEndpoint("/openapi/v1.json", "AgrismartAPI v1");
+    options.RoutePrefix = "swagger";
+});
 
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/openapi/v1.json", "AgrismartAPI v1");
-        options.RoutePrefix = "swagger";
-    });
-
-    app.MapScalarApiReference(options =>
-    {
-        options.WithTitle("AgrismartAPI");
-    });
-}
+app.MapScalarApiReference(options =>
+{
+    options.WithTitle("AgrismartAPI");
+});
 
 app.UseCors(policyBuilder =>
 {

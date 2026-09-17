@@ -30,4 +30,12 @@ public class UsersController(UserAppService userAppService) : ControllerBase
         var user = await userAppService.ChangeRoleAsync(id, request, cancellationToken);
         return Ok(user);
     }
+
+    /// <summary>Admin-only: updates a user's name, email and/or password. Notifies the user by email of any change.</summary>
+    [HttpPut("{id:guid}/credentials")]
+    public async Task<ActionResult<UserSummaryDto>> UpdateCredentials(Guid id, UpdateUserCredentialsRequest request, CancellationToken cancellationToken)
+    {
+        var user = await userAppService.UpdateCredentialsAsync(id, request, cancellationToken);
+        return Ok(user);
+    }
 }

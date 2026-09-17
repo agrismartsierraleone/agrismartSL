@@ -1,4 +1,6 @@
 using AgrismartAPI.Application.Abstractions;
+using AgrismartAPI.Application.Common;
+using AgrismartAPI.Domain.Audit;
 using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
@@ -8,6 +10,7 @@ using AgrismartAPI.Domain.Users;
 using AgrismartAPI.Infrastructure.Auth;
 using AgrismartAPI.Infrastructure.Diagnosis;
 using AgrismartAPI.Infrastructure.Diagnosis.Kindwise;
+using AgrismartAPI.Infrastructure.Email;
 using AgrismartAPI.Infrastructure.Persistence;
 using AgrismartAPI.Infrastructure.Persistence.Repositories;
 using AgrismartAPI.Infrastructure.Storage;
@@ -27,6 +30,8 @@ public static class DependencyInjection
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
         services.Configure<KindwiseSettings>(configuration.GetSection(KindwiseSettings.SectionName));
+        services.Configure<SendGridSettings>(configuration.GetSection(SendGridSettings.SectionName));
+        services.Configure<AppLinksSettings>(configuration.GetSection(AppLinksSettings.SectionName));
 
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
@@ -40,10 +45,12 @@ public static class DependencyInjection
         services.AddScoped<ITutorialRepository, TutorialRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<ICartRepository, CartRepository>();
+        services.AddScoped<IAuditLogRepository, AuditLogRepository>();
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
+        services.AddScoped<IEmailSender, SendGridEmailSender>();
 
         // Real pest/disease detection when a Kindwise API key is configured; otherwise fall back to
         // canned samples so local dev keeps working without a kindwise.com account.

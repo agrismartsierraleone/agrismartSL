@@ -43,4 +43,26 @@ public class User : Entity
     }
 
     public void ChangeRole(UserRole newRole) => Role = newRole;
+
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Name is required.", nameof(name));
+        }
+
+        Name = name.Trim();
+    }
+
+    public void ChangeEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException("Email is required.", nameof(email));
+        }
+
+        Email = email.Trim().ToLowerInvariant();
+    }
+
+    public void ChangePassword(string passwordHash) => PasswordHash = passwordHash;
 }

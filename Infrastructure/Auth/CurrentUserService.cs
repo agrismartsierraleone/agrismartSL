@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Domain.Users;
@@ -19,6 +20,20 @@ public class CurrentUserService(IHttpContextAccessor httpContextAccessor) : ICur
             }
 
             return userId;
+        }
+    }
+
+    public string Email
+    {
+        get
+        {
+            var value = httpContextAccessor.HttpContext?.User.FindFirstValue(JwtRegisteredClaimNames.Email);
+            if (string.IsNullOrEmpty(value))
+            {
+                throw new UnauthorizedAccessException("No authenticated user in the current request context.");
+            }
+
+            return value;
         }
     }
 

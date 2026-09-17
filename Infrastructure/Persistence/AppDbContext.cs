@@ -1,3 +1,4 @@
+using AgrismartAPI.Domain.Audit;
 using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
@@ -21,6 +22,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<Cart> Carts => Set<Cart>();
     public DbSet<BiometricCredential> BiometricCredentials => Set<BiometricCredential>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

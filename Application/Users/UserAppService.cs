@@ -1,11 +1,18 @@
 using AgrismartAPI.Application.Abstractions;
+using AgrismartAPI.Application.Audit;
 using AgrismartAPI.Application.Common;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Users;
 
 namespace AgrismartAPI.Application.Users;
 
-public class UserAppService(IUserRepository userRepository, ISellerRepository sellerRepository, IPasswordHasher passwordHasher)
+public class UserAppService(
+    IUserRepository userRepository,
+    ISellerRepository sellerRepository,
+    IPasswordHasher passwordHasher,
+    ICurrentUserService currentUser,
+    AuditLogAppService auditLogAppService,
+    UserNotificationService userNotificationService)
 {
     public async Task<IReadOnlyList<UserSummaryDto>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -35,6 +42,75 @@ public class UserAppService(IUserRepository userRepository, ISellerRepository se
             await sellerRepository.AddAsync(Seller.Create(user.Name, user.Email, null, null, user.Id), cancellationToken);
         }
 
+        await auditLogAppService.LogAsync(
+            currentUser.UserId,
+            currentUser.Email,
+            "UserCreated",
+            user.Id,
+            $"Created {user.Role} account for '{user.Email}'.",
+            cancellationToken);
+
+        await userNotificationService.SendAccountCreatedEmailAsync(user, request.Password, cancellationToken);
+
+        return ToDto(user);
+    }
+
+    /// <summary>Admin-only: updates a user's name, email and/or password. Sends a notification email for any change made.</summary>
+    public async Task<UserSummaryDto> UpdateCredentialsAsync(Guid userId, UpdateUserCredentialsRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken)
+                   ?? throw new NotFoundException($"User '{userId}' was not found.");
+
+        var changes = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Trim() != user.Name)
+        {
+            user.Rename(request.Name);
+            changes.Add($"Name changed to '{user.Name}'.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Email) && !string.Equals(request.Email.Trim(), user.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+            var existing = await userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+            if (existing is not null && existing.Id != user.Id)
+            {
+                throw new ConflictException("An account with this email already exists.");
+            }
+
+            var previousEmail = user.Email;
+            user.ChangeEmail(normalizedEmail);
+            changes.Add($"Email changed from '{previousEmail}' to '{user.Email}'.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            if (request.NewPassword.Length < 8)
+            {
+                throw new ValidationException("Password must be at least 8 characters long.");
+            }
+
+            user.ChangePassword(passwordHasher.Hash(request.NewPassword));
+            changes.Add("Password was changed.");
+        }
+
+        if (changes.Count == 0)
+        {
+            return ToDto(user);
+        }
+
+        await userRepository.UpdateAsync(user, cancellationToken);
+
+        await auditLogAppService.LogAsync(
+            currentUser.UserId,
+            currentUser.Email,
+            "UserCredentialsUpdated",
+            user.Id,
+            string.Join(" ", changes),
+            cancellationToken);
+
+        await userNotificationService.SendCredentialsUpdatedEmailAsync(user, changes, cancellationToken);
+
         return ToDto(user);
     }
 
@@ -43,12 +119,29 @@ public class UserAppService(IUserRepository userRepository, ISellerRepository se
         var user = await userRepository.GetByIdAsync(userId, cancellationToken)
                    ?? throw new NotFoundException($"User '{userId}' was not found.");
 
+        var previousRole = user.Role;
         user.ChangeRole(request.Role);
         await userRepository.UpdateAsync(user, cancellationToken);
 
         if (request.Role == UserRole.Seller && await sellerRepository.GetByUserIdAsync(user.Id, cancellationToken) is null)
         {
             await sellerRepository.AddAsync(Seller.Create(user.Name, user.Email, null, null, user.Id), cancellationToken);
+        }
+
+        if (previousRole != user.Role)
+        {
+            await auditLogAppService.LogAsync(
+                currentUser.UserId,
+                currentUser.Email,
+                "UserRoleChanged",
+                user.Id,
+                $"Role changed from {previousRole} to {user.Role}.",
+                cancellationToken);
+
+            await userNotificationService.SendCredentialsUpdatedEmailAsync(
+                user,
+                [$"Your account role was changed from {previousRole} to {user.Role}."],
+                cancellationToken);
         }
 
         return ToDto(user);

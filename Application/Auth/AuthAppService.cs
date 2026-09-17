@@ -1,4 +1,5 @@
 using AgrismartAPI.Application.Abstractions;
+using AgrismartAPI.Application.Audit;
 using AgrismartAPI.Application.Common;
 using AgrismartAPI.Domain.Users;
 
@@ -10,7 +11,8 @@ public class AuthAppService(
     IPasswordHasher passwordHasher,
     IJwtTokenGenerator jwtTokenGenerator,
     IBiometricChallengeStore biometricChallengeStore,
-    IBiometricSignatureVerifier biometricSignatureVerifier)
+    IBiometricSignatureVerifier biometricSignatureVerifier,
+    AuditLogAppService auditLogAppService)
 {
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken = default)
     {
@@ -33,6 +35,8 @@ public class AuthAppService(
         var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role);
         await userRepository.AddAsync(user, cancellationToken);
 
+        await auditLogAppService.LogAsync(user.Id, user.Email, "UserRegistered", user.Id, $"Self-registered as {user.Role}.", cancellationToken);
+
         return BuildAuthResponse(user);
     }
 
@@ -43,6 +47,8 @@ public class AuthAppService(
         {
             throw new ValidationException("Invalid email or password.");
         }
+
+        await auditLogAppService.LogAsync(user.Id, user.Email, "UserLoggedIn", user.Id, null, cancellationToken);
 
         return BuildAuthResponse(user);
     }

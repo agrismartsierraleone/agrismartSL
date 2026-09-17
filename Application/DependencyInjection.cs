@@ -1,3 +1,4 @@
+using AgrismartAPI.Application.Audit;
 using AgrismartAPI.Application.Auth;
 using AgrismartAPI.Application.Carts;
 using AgrismartAPI.Application.Diagnoses;
@@ -24,6 +25,8 @@ public static class DependencyInjection
         services.AddScoped<OrderAppService>();
         services.AddScoped<UserAppService>();
         services.AddScoped<CartAppService>();
+        services.AddScoped<AuditLogAppService>();
+        services.AddScoped<UserNotificationService>();
 
         return services;
     }

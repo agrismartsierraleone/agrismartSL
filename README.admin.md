@@ -128,12 +128,44 @@ Sellers get `403` on create/update/delete — tutorial content is Admin-only.
 | GET | `/users` | Admin |
 | POST | `/users` | Admin |
 | PUT | `/users/{id}/role` | Admin |
+| PUT | `/users/{id}/credentials` | Admin |
 
 `UserSummaryDto`: `{ "id", "name", "email", "role", "createdAt" }`
 Create user body: `{ "name", "email", "password" (min 8 chars), "role": "buyer | seller | admin" }`
 Change role body: `{ "role": "buyer | seller | admin" }`
+Update credentials body: `{ "name": "string?", "email": "string?", "newPassword": "string? (min 8 chars)" }` — send only the fields being changed; omitted/blank fields are left as-is. Returns `200` with the updated `UserSummaryDto` even if nothing changed (no email/audit entry is generated in that case).
 
 `POST /users` is how an admin onboards a seller (or buyer) account directly — creating a user with `"role": "seller"` here, or promoting one to `"seller"` via the role endpoint, auto-creates a linked seller profile for them if one doesn't already exist.
+
+### Account emails
+
+The backend sends transactional email (via SendGrid) on the account actions below — no frontend work is needed to trigger them, but the UI should set expectations (e.g. "an email with login details has been sent to the seller"):
+
+| Trigger | Email sent to | Contents |
+|---|---|---|
+| `POST /users` (any role, incl. seller) | the new user | Their email, the plaintext password just set, their role, and the login URL |
+| `PUT /users/{id}/role` (role actually changes) | the affected user | Notice that their role changed, and the login URL |
+| `PUT /users/{id}/credentials` (any field actually changes) | the affected user | A bullet list of what changed (name/email/password) and the login URL |
+
+There's no "resend welcome email" endpoint — if a seller says they didn't get it, an admin can trigger an equivalent email by making a no-op-looking `PUT /users/{id}/credentials` call with a `newPassword` (this both resets their password and re-sends credentials-style notice).
+
+---
+
+## Audit Log — `/audit-logs` (Admin only)
+
+Read-only activity trail for compliance/support — surface it as a simple admin-only table (e.g. filterable by date/action) rather than exposing it to sellers.
+
+| Method | Path | Role |
+|---|---|---|
+| GET | `/audit-logs` | Admin |
+
+`AuditLogDto`: `{ "id", "actorUserId": "guid?", "actorEmail", "action", "targetUserId": "guid?", "details": "string?", "createdAt" }`
+
+Returned newest-first, unpaginated today. `action` is one of a fixed set of strings — treat it as an enum for filtering/badges in the UI:
+
+`UserRegistered, UserLoggedIn, UserCreated, UserRoleChanged, UserCredentialsUpdated, SellerCreated, SellerUpdated, SellerDeleted`
+
+`actorUserId`/`actorEmail` identify who performed the action (for self-service actions like login/register, the actor is the user themselves); `targetUserId` identifies the affected user, when applicable.
 
 ---
 
@@ -154,6 +186,7 @@ Status codes: `400` validation, `401` missing/expired token, `403` wrong role or
 | Create sellers | ❌ | ✅ |
 | Categories (CRUD) | ✅ (not restricted today) | ✅ |
 | Tutorials (CRUD) | ❌ | ✅ |
-| Users / roles | ❌ | ✅ |
+| Users / roles / credentials | ❌ | ✅ |
+| Audit log | ❌ | ✅ |
 | View all orders | ❌ | ✅ |
 | View own orders (as seller) | ✅ | ✅ (via `/orders/all`) |

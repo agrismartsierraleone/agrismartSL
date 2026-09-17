@@ -244,3 +244,5 @@ C:\Users\yayah.waritay\AppData\Local\Temp\agrismart_build_check\AgrismartAPI.dep
 C:\Users\yayah.waritay\AppData\Local\Temp\agrismart_build_check\AgrismartAPI.runtimeconfig.json
 C:\Users\yayah.waritay\AppData\Local\Temp\agrismart_build_check\AgrismartAPI.dll
 C:\Users\yayah.waritay\AppData\Local\Temp\agrismart_build_check\AgrismartAPI.pdb
+C:\Users\yayah.waritay\RiderProjects\AgrismartAPI\bin\Debug\net10.0\SendGrid.dll
+C:\Users\yayah.waritay\RiderProjects\AgrismartAPI\bin\Debug\net10.0\StarkbankEcdsa.dll

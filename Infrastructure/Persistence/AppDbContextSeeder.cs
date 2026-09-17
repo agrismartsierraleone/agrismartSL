@@ -16,6 +16,12 @@ public static class AppDbContextSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
+        if (!await dbContext.Users.AnyAsync(user => user.Email == "yayah.waritay@njala.edu.sl", cancellationToken))
+        {
+            dbContext.Users.Add(User.Register("yayah Waritay", "yayah.waritay@njala.edu.sl", passwordHasher.Hash("Sal@2024"), UserRole.Admin));
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         if (!await dbContext.Categories.AnyAsync(cancellationToken))
         {
             dbContext.Categories.AddRange(

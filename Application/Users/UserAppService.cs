@@ -147,5 +147,34 @@ public class UserAppService(
         return ToDto(user);
     }
 
+    /// <summary>Admin-only: permanently deletes a user account. Sends a notification email to the deleted user.</summary>
+    public async Task DeleteAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByIdAsync(userId, cancellationToken)
+                   ?? throw new NotFoundException($"User '{userId}' was not found.");
+
+        if (user.Id == currentUser.UserId)
+        {
+            throw new ValidationException("You cannot delete your own account.");
+        }
+
+        if (await sellerRepository.GetByUserIdAsync(user.Id, cancellationToken) is not null)
+        {
+            throw new ConflictException("This user has a linked seller profile. Delete or reassign it before deleting the account.");
+        }
+
+        await userRepository.DeleteAsync(user, cancellationToken);
+
+        await auditLogAppService.LogAsync(
+            currentUser.UserId,
+            currentUser.Email,
+            "UserDeleted",
+            user.Id,
+            $"Deleted {user.Role} account for '{user.Email}'.",
+            cancellationToken);
+
+        await userNotificationService.SendAccountDeletedEmailAsync(user, cancellationToken);
+    }
+
     private static UserSummaryDto ToDto(User user) => new(user.Id, user.Name, user.Email, user.Role, user.CreatedAt);
 }

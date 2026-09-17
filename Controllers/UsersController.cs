@@ -38,4 +38,12 @@ public class UsersController(UserAppService userAppService) : ControllerBase
         var user = await userAppService.UpdateCredentialsAsync(id, request, cancellationToken);
         return Ok(user);
     }
+
+    /// <summary>Admin-only: permanently deletes a user account. Notifies the user by email.</summary>
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await userAppService.DeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
 }

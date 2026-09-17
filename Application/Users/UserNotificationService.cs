@@ -42,6 +42,18 @@ public class UserNotificationService(IEmailSender emailSender, IOptions<AppLinks
         return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
     }
 
+    public Task SendAccountDeletedEmailAsync(User user, CancellationToken cancellationToken = default)
+    {
+        var subject = "Your AgrismartAPI account has been deleted";
+        var html = $"""
+            <p>Hello {Encode(user.Name)},</p>
+            <p>Your AgrismartAPI account ({Encode(user.Email)}) has been deleted by an administrator. You will no longer be able to log in with these credentials.</p>
+            <p>If you believe this was done in error, please contact an administrator.</p>
+            """;
+
+        return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
+    }
+
     private string LoginLinkHtml()
     {
         var loginUrl = appLinks.Value.LoginUrl;

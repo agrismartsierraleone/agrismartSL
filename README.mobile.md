@@ -222,6 +222,56 @@ Response `200` (`CheckoutSessionDto`):
 - Fails with `400` if the cart is empty; `400`/`502` if Monime itself rejects/can't
   be reached (surface `message` from the error body).
 
+#### Full worked example (curl)
+
+The session is built from whatever is already in the caller's cart — there is no
+way to pass line items directly to `/checkout/sessions`. So a correct integration
+is always at least two calls: put something in the cart, then create the session.
+
+```bash
+# 1. Log in (or register) to get a Buyer JWT
+curl -X POST http://localhost:5150/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{ "email": "buyer@example.com", "password": "Password123!" }'
+# -> { "token": "eyJhbGciOi...", "user": { ... } }
+
+TOKEN="eyJhbGciOi..."   # the token from the response above
+
+# 2. Add at least one product to the cart — checkout has nothing to charge without this
+curl -X POST http://localhost:5150/cart/items \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "productId": "c173cfac-2e3e-4d7b-bad6-76115eb30885", "quantity": 1 }'
+
+# 3. Create the Monime checkout session — body is optional, {} is valid
+curl -X POST http://localhost:5150/checkout/sessions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "successUrl": "agrismart://payment-success", "cancelUrl": "agrismart://payment-cancelled" }'
+# -> { "id": "...", "orderId": "...", "monimeSessionId": "scs-...", "status": "pending",
+#      "redirectUrl": "https://checkout.monime.io/scs-...", "expireTime": "...",
+#      "amount": 4500.0, "currency": "SLE" }
+```
+
+Open the response's `redirectUrl` — that's the whole payment flow from here.
+
+**Three request-shape rules that are easy to get wrong:**
+- `Authorization: Bearer <token>` is required — no anonymous/guest checkout.
+- `Content-Type: application/json` must be set on the POST, even for `{}` — a
+  request with no body/no content-type at all gets `415 Unsupported Media Type`,
+  not `400`.
+- Do **not** send `paymentMethod` here — that field belongs to `POST
+  /cart/checkout`/`POST /orders` (paths 2 & 3), not this endpoint. `successUrl`/
+  `cancelUrl` are the only two fields this endpoint reads, and both are optional.
+
+**If you get a `400`, read the `message` field — it tells you exactly what's wrong:**
+
+| `message` | Cause | Fix |
+|---|---|---|
+| `"Your cart is empty."` | Called `/checkout/sessions` before `/cart/items` succeeded, or with a token whose cart is empty | Confirm step 2 above returned `200` for the *same* token first |
+| `"Use POST /checkout/sessions to pay online via Monime — this endpoint is for cash-on-pickup or unpaid-hold orders only."` | Sent `"paymentMethod": "monimeOnline"` to `/cart/checkout` or `/orders` instead of calling `/checkout/sessions` | Call `POST /checkout/sessions` directly for the Monime path; reserve `paymentMethod` for paths 2 & 3 |
+| Anything else | Monime itself rejected the request (`400`) or couldn't be reached (`502`) | Surface the message as-is; this is not a request-shape problem on the app's side |
+
 **`GET /checkout/sessions/{id}`** — poll the caller's own session (e.g. while the
 in-app browser is open, or right after it closes) to reflect status without waiting
 for an admin. Same `CheckoutSessionDto` shape; `status` is one of `pending`,

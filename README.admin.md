@@ -117,7 +117,7 @@ Create/Update body: `{ "name": "string", "contactEmail": "string?", "contactPhon
 
 ---
 
-## Payment Reconciliation — `/admin/checkout` (Admin only)
+## Payment Reconciliation — `/checkout/reconciliation` (Admin and Seller)
 
 Covers all three ways a buyer can complete a purchase (see `MONIME-INTEGRATION-README.md`
 §2): pay online via Monime, pay cash on pickup, or place an order unpaid (24h hold).
@@ -125,16 +125,27 @@ Covers all three ways a buyer can complete a purchase (see `MONIME-INTEGRATION-R
 path created it — use this section to build the "pending / confirmed / paid
 transactions" view and the actions to move an order between those states.
 
-### Transactions grid — `/admin/checkout/transactions`
+**Scope differs by role, down to the product level:** an Admin sees every seller's
+payment row on every order; a Seller only sees orders containing **at least one of
+their own products** (same order-level scoping as `GET /orders/mine-as-seller`), and
+even then **only their own row** within that order — never another seller's. A cart
+can span multiple sellers (a multi-vendor order); each seller's portion is confirmed
+and reconciled independently, so Seller A can never mark Seller B's products as paid
+just because they shared a checkout. A Seller with no linked seller profile gets
+`404` from every endpoint below.
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/admin/checkout/transactions?paymentStatus=&paymentMethod=` | Every order's payment state; both query params optional |
-| POST | `/admin/checkout/transactions/{orderId}/confirm` | `pending` → `confirmed` (e.g. cash handed over at pickup) |
-| POST | `/admin/checkout/transactions/{orderId}/paid` | → `paid` (final reconciliation/settlement) |
-| POST | `/admin/checkout/transactions/{orderId}/sync` | **Monime orders only** — re-fetches the session from Monime and auto-reconciles |
+### Transactions grid — `/checkout/reconciliation/transactions`
 
-`paymentStatus` query value is `pending`, `confirmed`, or `paid`; `paymentMethod` is `monimeOnline`, `cashOnPickup`, or `unpaidHold`. Send either, both, or neither.
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | `/checkout/reconciliation/transactions?paymentStatus=&paymentMethod=` | Admin, Seller | Every order the caller can see, with the payment row(s) they're allowed to see |
+| POST | `/checkout/reconciliation/transactions/{orderId}/confirm?sellerId=` | Admin, Seller | `pending` → `confirmed` for one seller's products in the order |
+| POST | `/checkout/reconciliation/transactions/{orderId}/paid?sellerId=` | Admin, Seller | → `paid` for one seller's products in the order |
+| POST | `/checkout/reconciliation/transactions/{orderId}/sync` | Admin, Seller | **Monime orders only** — one lump payment, so a completed session marks every seller's row on the order paid at once (see below) |
+
+`paymentStatus` query value is `pending`, `confirmed`, or `paid`; `paymentMethod` is `monimeOnline`, `cashOnPickup`, or `unpaidHold`. For a Seller, `paymentStatus` filters against **their own row**, not the order's aggregate — e.g. a Seller filtering "pending" sees an order even if another seller's row on it is already `paid`.
+
+`sellerId` on `.../confirm` and `.../paid`: a **Seller's own products are always used** — the parameter is ignored for them even if sent, so a Seller can never pass someone else's seller id to act on their behalf. An **Admin must pass `sellerId`** when the order has products from more than one seller (`400` if omitted on a multi-vendor order, `400` if the given `sellerId` has no products in it); it can be omitted on a single-seller order. Both return `403` if a Seller targets an `orderId` that doesn't contain any of their products, and `409` if that seller's row isn't in the expected state (e.g. already `paid`).
 
 `OrderPaymentDto` (returned by all four endpoints above):
 ```json
@@ -151,42 +162,56 @@ transactions" view and the actions to move an order between those states.
   "monimeStatus": "pending | completed | cancelled | expired | null",
   "ussdCode": "string | null",
   "paymentCodeStatus": "pending | processing | completed | expired | cancelled | null",
-  "confirmedAt": "date | null",
-  "confirmedByAdminId": "guid | null",
-  "reconciledAt": "date | null",
-  "reconciledByAdminId": "guid | null",
+  "sellerPayments": [
+    {
+      "sellerId": "guid", "sellerName": "string", "subtotal": 0,
+      "paymentStatus": "pending | confirmed | paid",
+      "confirmedAt": "date | null", "confirmedByUserId": "guid | null",
+      "reconciledAt": "date | null", "reconciledByUserId": "guid | null"
+    }
+  ],
   "createdAt": "date"
 }
 ```
 
-`ussdCode` is the real, per-transaction USSD dial string Monime generated for this
-order (e.g. `*715*18284#`) — worth showing in the grid/detail view for support to
-read back to a customer who says "I paid by USSD but it still shows pending."
-`paymentCodeStatus` is that payment code's own lifecycle, independent of
-`monimeStatus` (the checkout session's) — either reaching `completed` is what
-`.../sync` treats as paid.
+`paymentStatus` at the top level is the **order-wide aggregate**: `paid` only once
+every seller on the order is paid, `pending` if any seller's row still is, otherwise
+`confirmed`. `sellerPayments` is the actual breakdown the `.../confirm` and
+`.../paid` actions operate on — **for an Admin this lists every seller with
+products in the order; for a Seller it contains only their own entry** (other
+sellers' reconciliation state, and who confirmed/reconciled it, is never exposed to
+a Seller who didn't post those products). `ussdCode` is the real, per-transaction
+USSD dial string Monime generated for this order (e.g. `*715*18284#`) — worth
+showing in the grid/detail view for support to read back to a customer who says "I
+paid by USSD but it still shows pending." `paymentCodeStatus` is that payment
+code's own lifecycle, independent of `monimeStatus` (the checkout session's) —
+either reaching `completed` is what `.../sync` treats as paid.
 
-Suggested UI: a table with a status filter (Pending / Confirmed / Paid tabs) and a
-payment-method column/filter. Row actions: **Confirm** (only enabled while
+Suggested UI: a table with a status filter (Pending / Confirmed / Paid tabs, applied
+against the caller's own row for a Seller) and a payment-method column/filter. For a
+multi-vendor order, render one action row per seller in `sellerPayments` — a Seller
+naturally only ever sees their own. Row actions: **Confirm** (only enabled while
 `pending`), **Mark Paid** (enabled once `pending` or `confirmed`), and — only for
-rows where `paymentMethod` is `monimeOnline` and neither `monimeStatus` nor
-`paymentCodeStatus` is `completed` yet — a **Sync with Monime** action that calls
-`.../sync` to pull the latest status from both the checkout session and the
-payment code instead of waiting on a webhook (Monime's checkout-session webhook
-isn't stable yet — see `MONIME-INTEGRATION-README.md` §7). `.../confirm` and
-`.../paid` return `409` if the order isn't in the expected state (e.g. already
-`paid`) — surface the message rather than retrying. `.../sync` can return
-`400`/`502` if Monime itself rejects the lookup or can't be reached.
+`monimeOnline` orders where neither `monimeStatus` nor `paymentCodeStatus` is
+`completed` yet — a **Sync with Monime** action that calls `.../sync` to pull the
+latest status from both the checkout session and the payment code instead of
+waiting on a webhook (Monime's checkout-session webhook isn't stable yet — see
+`MONIME-INTEGRATION-README.md` §7); since Monime collects one lump sum for the
+whole cart, a successful sync marks every seller's row on that order paid together,
+not just the caller's. `.../sync` can return `400`/`502` if Monime itself rejects
+the lookup or can't be reached.
 
-### Raw Monime session detail — `/admin/checkout/sessions`
+### Raw Monime session detail — `/checkout/reconciliation/sessions` (Admin only)
 
 Support/troubleshooting visibility into the underlying Monime call — "what actually
 happened to this customer's payment," independent of the reconciliation grid above.
+Unlike the transactions grid, this is **Admin-only** — it isn't scoped per seller and
+spans every order on the platform, so it isn't exposed to Sellers.
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/admin/checkout/sessions` | Every checkout session ever created |
-| GET | `/admin/checkout/sessions/{id}` | One session's full detail, incl. every create/sync attempt against it |
+| Method | Path | Role | Notes |
+|---|---|---|---|
+| GET | `/checkout/reconciliation/sessions` | Admin | Every checkout session ever created |
+| GET | `/checkout/reconciliation/sessions/{id}` | Admin | One session's full detail, incl. every create/sync attempt against it |
 
 `CheckoutSessionAdminDto`:
 ```json
@@ -310,4 +335,5 @@ Status codes: `400` validation, `401` missing/expired token, `403` wrong role or
 | Audit log | ❌ | ✅ |
 | View all orders | ❌ | ✅ |
 | View own orders (as seller) | ✅ | ✅ (via `/orders/all`) |
-| Payment reconciliation (`/admin/checkout/*`) | ❌ | ✅ |
+| Payment reconciliation — transactions grid, confirm/paid/sync | ✅ (own products only, never another seller's) | ✅ (any) |
+| Payment reconciliation — raw session/audit detail | ❌ | ✅ |

@@ -24,6 +24,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasConversion(JsonValueConverters.ForList<OrderItem>());
         itemsProperty.Metadata.SetValueComparer(JsonValueConverters.ListComparer<OrderItem>());
 
+        var sellerPaymentsProperty = builder.Property(order => order.SellerPayments)
+            .HasColumnName("SellerPayments")
+            .HasConversion(JsonValueConverters.ForList<SellerPayment>());
+        sellerPaymentsProperty.Metadata.SetValueComparer(JsonValueConverters.ListComparer<SellerPayment>());
+
         builder.HasIndex(order => order.UserId);
         builder.HasIndex(order => order.PaymentStatus);
         builder.HasIndex(order => order.CheckoutSessionId);

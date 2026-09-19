@@ -3,6 +3,7 @@ using AgrismartAPI.Application.Common;
 using AgrismartAPI.Application.Orders;
 using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Checkout;
+using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
 using AgrismartAPI.Domain.Users;
 using Microsoft.Extensions.Options;
@@ -11,7 +12,9 @@ namespace AgrismartAPI.Application.Checkout;
 
 /// <summary>
 /// The Monime hosted-checkout integration (path 1 of the three checkout flows — see
-/// MONIME-INTEGRATION-README.md §2) plus admin reconciliation across all three flows.
+/// MONIME-INTEGRATION-README.md §2) plus payment reconciliation across all three flows. An Admin can
+/// act on any seller's row on any order; a Seller can act only on their own row, on orders containing
+/// at least one of their own products — never another seller's, even within the same multi-vendor order.
 /// </summary>
 public class CheckoutAppService(
     ICartRepository cartRepository,
@@ -21,6 +24,7 @@ public class CheckoutAppService(
     ICheckoutAuditLogRepository checkoutAuditLogRepository,
     IMonimeCheckoutClient monimeClient,
     IUserRepository userRepository,
+    ISellerRepository sellerRepository,
     IOptions<MonimeSettings> monimeOptions)
 {
     private readonly MonimeSettings _monime = monimeOptions.Value;
@@ -117,65 +121,103 @@ public class CheckoutAppService(
         return ToDto(session, order?.TotalAmount ?? 0m);
     }
 
-    /// <summary>Admin reconciliation view: every order's payment state, across all three checkout paths.</summary>
-    public async Task<IReadOnlyList<OrderPaymentDto>> GetTransactionsAsync(PaymentStatus? paymentStatus, PaymentMethod? paymentMethod, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Reconciliation view: every order's payment state, across all three checkout paths. An Admin
+    /// (<paramref name="callerRole"/>) sees every seller's row on every order; a Seller sees only
+    /// orders containing at least one of their own products, and only their own row within them —
+    /// never another seller's, even in the same multi-vendor order.
+    /// </summary>
+    public async Task<IReadOnlyList<OrderPaymentDto>> GetTransactionsAsync(
+        Guid callerId, UserRole callerRole, PaymentStatus? paymentStatus, PaymentMethod? paymentMethod, CancellationToken cancellationToken = default)
     {
+        var sellerScope = await ResolveSellerScopeAsync(callerId, callerRole, cancellationToken);
+
         var orders = (await orderRepository.GetAllAsync(cancellationToken))
-            .Where(order => paymentStatus is null || order.PaymentStatus == paymentStatus)
             .Where(order => paymentMethod is null || order.PaymentMethod == paymentMethod)
+            .Where(order => sellerScope is null || order.Items.Any(item => item.SellerId == sellerScope))
+            .Where(order => paymentStatus is null || MatchesPaymentStatus(order, sellerScope, paymentStatus.Value))
             .OrderByDescending(order => order.CreatedAt)
             .ToList();
 
         var userIds = orders.Select(order => order.UserId).Distinct().ToList();
         var users = (await userRepository.GetByIdsAsync(userIds, cancellationToken)).ToDictionary(user => user.Id);
 
+        var sellersById = (await sellerRepository.GetAllAsync(cancellationToken)).ToDictionary(seller => seller.Id);
         var sessions = (await checkoutSessionRepository.GetAllAsync(cancellationToken)).ToDictionary(session => session.OrderId);
 
-        return orders.Select(order => ToOrderPaymentDto(order, users.GetValueOrDefault(order.UserId), sessions.GetValueOrDefault(order.Id))).ToList();
-    }
-
-    /// <summary>Admin confirms payment was received (e.g. cash handed over at pickup) — Pending → Confirmed.</summary>
-    public async Task<OrderPaymentDto> ConfirmPaymentAsync(Guid adminId, Guid orderId, CancellationToken cancellationToken = default)
-    {
-        var order = await orderRepository.GetByIdAsync(orderId, cancellationToken)
-                    ?? throw new NotFoundException($"Order '{orderId}' was not found.");
-
-        if (order.PaymentStatus != PaymentStatus.Pending)
-        {
-            throw new ConflictException($"Order '{orderId}' payment is already {order.PaymentStatus}.");
-        }
-
-        order.ConfirmPayment(adminId);
-        await orderRepository.UpdateAsync(order, cancellationToken);
-
-        return await BuildOrderPaymentDtoAsync(order, cancellationToken);
-    }
-
-    /// <summary>Admin marks an order as fully paid/reconciled — final step for cash-on-pickup/unpaid-hold orders.</summary>
-    public async Task<OrderPaymentDto> MarkPaidAsync(Guid adminId, Guid orderId, CancellationToken cancellationToken = default)
-    {
-        var order = await orderRepository.GetByIdAsync(orderId, cancellationToken)
-                    ?? throw new NotFoundException($"Order '{orderId}' was not found.");
-
-        if (order.PaymentStatus == PaymentStatus.Paid)
-        {
-            throw new ConflictException($"Order '{orderId}' is already marked as paid.");
-        }
-
-        order.MarkPaid(adminId);
-        await orderRepository.UpdateAsync(order, cancellationToken);
-
-        return await BuildOrderPaymentDtoAsync(order, cancellationToken);
+        return orders
+            .Select(order => ToOrderPaymentDto(order, users.GetValueOrDefault(order.UserId), sessions.GetValueOrDefault(order.Id), sellerScope, sellersById))
+            .ToList();
     }
 
     /// <summary>
-    /// Monime-only: re-fetches the session from Monime and reconciles this order against it. Needed
-    /// because Monime's checkout_session webhook events are not yet stable — see MONIME-INTEGRATION-README.md §11.
+    /// A seller confirms payment was received for their own products in this order (e.g. cash handed
+    /// over at pickup) — Pending → Confirmed. Never touches another seller's portion of the same order.
+    /// An Admin acts the same way but must say which seller's portion via <paramref name="sellerId"/>
+    /// when the order spans more than one.
     /// </summary>
-    public async Task<OrderPaymentDto> SyncMonimeSessionAsync(Guid orderId, CancellationToken cancellationToken = default)
+    public async Task<OrderPaymentDto> ConfirmPaymentAsync(Guid callerId, UserRole callerRole, Guid orderId, Guid? sellerId, CancellationToken cancellationToken = default)
     {
         var order = await orderRepository.GetByIdAsync(orderId, cancellationToken)
                     ?? throw new NotFoundException($"Order '{orderId}' was not found.");
+
+        var targetSellerId = await ResolveTargetSellerIdAsync(order, callerId, callerRole, sellerId, cancellationToken);
+        var payment = order.GetSellerPayment(targetSellerId)!;
+
+        if (payment.PaymentStatus != PaymentStatus.Pending)
+        {
+            throw new ConflictException($"This seller's payment on order '{orderId}' is already {payment.PaymentStatus}.");
+        }
+
+        order.ConfirmSellerPayment(targetSellerId, callerId);
+        await orderRepository.UpdateAsync(order, cancellationToken);
+
+        return await BuildOrderPaymentDtoAsync(order, callerId, callerRole, cancellationToken);
+    }
+
+    /// <summary>
+    /// A seller marks their own products in this order as fully paid/reconciled — final step for
+    /// cash-on-pickup/unpaid-hold orders. Never touches another seller's portion of the same order. An
+    /// Admin acts the same way but must say which seller's portion via <paramref name="sellerId"/> when
+    /// the order spans more than one.
+    /// </summary>
+    public async Task<OrderPaymentDto> MarkPaidAsync(Guid callerId, UserRole callerRole, Guid orderId, Guid? sellerId, CancellationToken cancellationToken = default)
+    {
+        var order = await orderRepository.GetByIdAsync(orderId, cancellationToken)
+                    ?? throw new NotFoundException($"Order '{orderId}' was not found.");
+
+        var targetSellerId = await ResolveTargetSellerIdAsync(order, callerId, callerRole, sellerId, cancellationToken);
+        var payment = order.GetSellerPayment(targetSellerId)!;
+
+        if (payment.PaymentStatus == PaymentStatus.Paid)
+        {
+            throw new ConflictException($"This seller's payment on order '{orderId}' is already marked as paid.");
+        }
+
+        order.MarkSellerPaid(targetSellerId, callerId);
+        await orderRepository.UpdateAsync(order, cancellationToken);
+
+        return await BuildOrderPaymentDtoAsync(order, callerId, callerRole, cancellationToken);
+    }
+
+    /// <summary>
+    /// Monime-only: re-fetches the session from Monime and reconciles this order against it. Monime
+    /// charges the customer once for the whole cart, so a completed session marks every seller's
+    /// portion paid at once — this isn't one seller reconciling another's products, it's an external
+    /// fact applying to the order as a whole. Needed because Monime's checkout_session webhook events
+    /// are not yet stable — see MONIME-INTEGRATION-README.md §11. Callable by an Admin or a Seller with
+    /// an item in this order.
+    /// </summary>
+    public async Task<OrderPaymentDto> SyncMonimeSessionAsync(Guid callerId, UserRole callerRole, Guid orderId, CancellationToken cancellationToken = default)
+    {
+        var order = await orderRepository.GetByIdAsync(orderId, cancellationToken)
+                    ?? throw new NotFoundException($"Order '{orderId}' was not found.");
+
+        var sellerScope = await ResolveSellerScopeAsync(callerId, callerRole, cancellationToken);
+        if (sellerScope is not null && order.Items.All(item => item.SellerId != sellerScope))
+        {
+            throw new ForbiddenException("You can only reconcile orders containing your own products.");
+        }
 
         if (order.PaymentMethod != PaymentMethod.MonimeOnline || order.CheckoutSessionId is not { } checkoutSessionId)
         {
@@ -213,7 +255,7 @@ public class CheckoutAppService(
 
         if (isPaid && order.PaymentStatus != PaymentStatus.Paid)
         {
-            order.MarkPaid(adminId: null);
+            order.MarkAllSellersPaid(userId: null);
             await orderRepository.UpdateAsync(order, cancellationToken);
 
             // Best-effort: stop whichever channel didn't complete, so it can't be used for a second payment.
@@ -233,7 +275,7 @@ public class CheckoutAppService(
             await orderRepository.UpdateAsync(order, cancellationToken);
         }
 
-        return await BuildOrderPaymentDtoAsync(order, cancellationToken);
+        return await BuildOrderPaymentDtoAsync(order, callerId, callerRole, cancellationToken);
     }
 
     /// <summary>
@@ -313,14 +355,89 @@ public class CheckoutAppService(
         return await ToAdminDtoAsync(session, cancellationToken);
     }
 
-    private async Task<OrderPaymentDto> BuildOrderPaymentDtoAsync(Order order, CancellationToken cancellationToken)
+    /// <summary>Null for an Admin (unrestricted); the caller's own seller id for a Seller.</summary>
+    private async Task<Guid?> ResolveSellerScopeAsync(Guid callerId, UserRole callerRole, CancellationToken cancellationToken)
+    {
+        if (callerRole != UserRole.Seller)
+        {
+            return null;
+        }
+
+        var seller = await sellerRepository.GetByUserIdAsync(callerId, cancellationToken)
+                     ?? throw new NotFoundException("No seller profile is linked to this account.");
+        return seller.Id;
+    }
+
+    /// <summary>
+    /// Which seller's row a reconciliation action targets. A Seller can only ever target their own —
+    /// <paramref name="requestedSellerId"/> is ignored for them. An Admin must disambiguate via
+    /// <paramref name="requestedSellerId"/> when the order spans more than one seller. The returned id
+    /// is always guaranteed to have a matching <see cref="Order.SellerPayments"/> row, so callers can
+    /// safely assume <see cref="Order.GetSellerPayment"/> won't return null for it.
+    /// </summary>
+    private async Task<Guid> ResolveTargetSellerIdAsync(Order order, Guid callerId, UserRole callerRole, Guid? requestedSellerId, CancellationToken cancellationToken)
+    {
+        Guid targetSellerId;
+
+        if (callerRole == UserRole.Seller)
+        {
+            var seller = await sellerRepository.GetByUserIdAsync(callerId, cancellationToken)
+                         ?? throw new NotFoundException("No seller profile is linked to this account.");
+
+            if (order.Items.All(item => item.SellerId != seller.Id))
+            {
+                throw new ForbiddenException("You can only reconcile orders containing your own products.");
+            }
+
+            targetSellerId = seller.Id;
+        }
+        else
+        {
+            var distinctSellerIds = order.Items.Select(item => item.SellerId).Distinct().ToList();
+            if (requestedSellerId is { } sellerId)
+            {
+                if (!distinctSellerIds.Contains(sellerId))
+                {
+                    throw new ValidationException($"Seller '{sellerId}' has no products in this order.");
+                }
+
+                targetSellerId = sellerId;
+            }
+            else if (distinctSellerIds.Count == 1)
+            {
+                targetSellerId = distinctSellerIds[0];
+            }
+            else
+            {
+                throw new ValidationException("This order has products from more than one seller — specify which seller's payment to reconcile via ?sellerId=.");
+            }
+        }
+
+        if (order.GetSellerPayment(targetSellerId) is null)
+        {
+            // The seller genuinely has products in this order (checked above), but the order predates
+            // per-seller payment tracking (see MONIME-INTEGRATION-README.md §9) and was backfilled with
+            // an empty SellerPayments list — there's nothing to reconcile it against.
+            throw new ValidationException("This order predates per-seller payment tracking and cannot be reconciled here.");
+        }
+
+        return targetSellerId;
+    }
+
+    private async Task<OrderPaymentDto> BuildOrderPaymentDtoAsync(Order order, Guid callerId, UserRole callerRole, CancellationToken cancellationToken)
     {
         var user = await userRepository.GetByIdAsync(order.UserId, cancellationToken);
         var session = order.CheckoutSessionId is { } sessionId
             ? await checkoutSessionRepository.GetByIdAsync(sessionId, cancellationToken)
             : null;
 
-        return ToOrderPaymentDto(order, user, session);
+        var sellerScope = await ResolveSellerScopeAsync(callerId, callerRole, cancellationToken);
+        var relevantSellerIds = order.Items.Select(item => item.SellerId).Distinct();
+        var sellersById = (await sellerRepository.GetAllAsync(cancellationToken))
+            .Where(seller => relevantSellerIds.Contains(seller.Id))
+            .ToDictionary(seller => seller.Id);
+
+        return ToOrderPaymentDto(order, user, session, sellerScope, sellersById);
     }
 
     private async Task<CheckoutSessionAdminDto> ToAdminDtoAsync(CheckoutSession session, CancellationToken cancellationToken)
@@ -347,24 +464,49 @@ public class CheckoutAppService(
             auditLogs.Select(ToDto).ToList());
     }
 
-    private static OrderPaymentDto ToOrderPaymentDto(Order order, User? user, CheckoutSession? session) => new(
-        order.Id,
-        new OrderCustomerDto(order.UserId, user?.Name ?? "Unknown", user?.Email ?? "unknown"),
-        order.TotalAmount,
-        order.PaymentMethod,
-        order.PaymentStatus,
-        order.Status,
-        order.HoldExpiresAt,
-        order.CheckoutSessionId,
-        session?.MonimeSessionId,
-        session?.Status,
-        session?.UssdCode,
-        session?.PaymentCodeStatus,
-        order.ConfirmedAt,
-        order.ConfirmedByAdminId,
-        order.ReconciledAt,
-        order.ReconciledByAdminId,
-        order.CreatedAt);
+    /// <summary>Whichever <paramref name="filter"/> is being matched against: the seller's own row when scoped, else the order-wide aggregate.</summary>
+    private static bool MatchesPaymentStatus(Order order, Guid? sellerScope, PaymentStatus filter)
+    {
+        if (sellerScope is { } sellerId)
+        {
+            return order.GetSellerPayment(sellerId)?.PaymentStatus == filter;
+        }
+
+        return order.PaymentStatus == filter;
+    }
+
+    /// <summary><paramref name="viewerSellerScope"/> null (Admin) includes every seller's row; a seller id restricts the breakdown to just that seller's own row.</summary>
+    private static OrderPaymentDto ToOrderPaymentDto(Order order, User? user, CheckoutSession? session, Guid? viewerSellerScope, IReadOnlyDictionary<Guid, Seller> sellersById)
+    {
+        var sellerPayments = order.SellerPayments
+            .Where(payment => viewerSellerScope is null || payment.SellerId == viewerSellerScope)
+            .Select(payment => new SellerPaymentDto(
+                payment.SellerId,
+                sellersById.TryGetValue(payment.SellerId, out var seller) ? seller.Name : "Unknown",
+                order.Items.Where(item => item.SellerId == payment.SellerId).Sum(item => item.LineTotal),
+                payment.PaymentStatus,
+                payment.ConfirmedAt,
+                payment.ConfirmedByUserId,
+                payment.ReconciledAt,
+                payment.ReconciledByUserId))
+            .ToList();
+
+        return new OrderPaymentDto(
+            order.Id,
+            new OrderCustomerDto(order.UserId, user?.Name ?? "Unknown", user?.Email ?? "unknown"),
+            order.TotalAmount,
+            order.PaymentMethod,
+            order.PaymentStatus,
+            order.Status,
+            order.HoldExpiresAt,
+            order.CheckoutSessionId,
+            session?.MonimeSessionId,
+            session?.Status,
+            session?.UssdCode,
+            session?.PaymentCodeStatus,
+            sellerPayments,
+            order.CreatedAt);
+    }
 
     private static CheckoutAuditLogDto ToDto(CheckoutAuditLog log) => new(
         log.Id,

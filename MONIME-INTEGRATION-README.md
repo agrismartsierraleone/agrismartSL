@@ -67,9 +67,9 @@ merchant USSD code. The `Monime:MerchantUssdCode` config key has been removed.
 **`POST /cart/checkout`** or **`POST /orders`** with `"paymentMethod":
 "cashOnPickup"`. No Monime session is created. The order is placed immediately
 (`PaymentStatus = Pending`), held for the customer, and settled in person. An admin
-reconciles it afterwards via `POST /admin/checkout/transactions/{orderId}/confirm`
-then `.../paid` (see §5) — money never moves through this backend or through Monime
-for this path.
+**or the seller whose product is in the order** reconciles it afterwards via `POST
+/checkout/reconciliation/transactions/{orderId}/confirm` then `.../paid` (see §7) —
+money never moves through this backend or through Monime for this path.
 
 ### Path 3 — Place the order unpaid, held for 24 hours
 
@@ -157,12 +157,12 @@ Mobile app          AgrismartAPI                              Monime
   |                     |                                       |
   | open redirectUrl OR dial ussdCode -> Monime collects payment -->
   |                     |                                       |
-  |                     |  (later) admin/background reconciles:  |
+  |                     |  (later) admin/seller reconciles:      |
   |                     |  GET /v1/checkout-sessions/{id} ------->
   |                     |  GET /v1/payment-codes/{id} ----------->
   |                     |<----------------------------------------|
-  |                     | Order.MarkPaid() / CancelUnpaid()        |
-  |                     | + best-effort cancel the unused channel  |
+  |                     | Order.MarkAllSellersPaid() / CancelUnpaid() |
+  |                     | + best-effort cancel the unused channel     |
 ```
 
 Where things live:
@@ -178,8 +178,9 @@ Where things live:
 | Public/admin request-response shapes | `Application/Checkout/CheckoutDtos.cs` |
 | Persisted session + audit trail | `Domain/Checkout/CheckoutSession.cs`, `CheckoutAuditLog.cs` |
 | Buyer-facing endpoints | `Controllers/CheckoutController.cs` |
-| Admin reconciliation + support endpoints | `Controllers/AdminCheckoutController.cs` |
+| Reconciliation endpoints (Admin: any seller's row; Seller: only their own) | `Controllers/CheckoutReconciliationController.cs` |
 | Payment fields/mutators on the order itself | `Domain/Orders/Order.cs`, `PaymentMethod.cs`, `PaymentStatus.cs` |
+| One seller's own reconciliation state within an order | `Domain/Orders/SellerPayment.cs` |
 | 24-hour unpaid-hold auto-cancel | `Infrastructure/Orders/OrderHoldExpiryService.cs` |
 
 ## 5. Configuration
@@ -226,26 +227,58 @@ marked **"coming soon"** in Monime's own docs as of this integration — there i
 documented signing scheme or stable payload for them yet, so this backend does not
 implement a webhook receiver. Instead:
 
-- **`POST /admin/checkout/transactions/{orderId}/sync`** (Admin) — calls
+Reconciliation is **per seller**, not per order, because an order can span multiple
+sellers (a multi-vendor cart checks out as one `Order`). `Order.SellerPayments`
+holds one `SellerPayment` row per distinct seller among `Order.Items`; every
+reconciliation action reads/writes exactly one of those rows. `Order.PaymentStatus`
+is a derived aggregate recomputed on every change (`Paid` only once every seller's
+row is `Paid`, `Pending` if any row still is, else `Confirmed`) — it's what the
+buyer's own `OrderDto` shows, but it is **not** what a reconciliation action targets.
+
+All of the following are callable by an **Admin** (any seller's row on any order) or
+a **Seller** (only their own row, only on orders containing at least one of their
+own products — same order-level scoping as `GET /orders/mine-as-seller`; enforced in
+`CheckoutAppService.ResolveTargetSellerIdAsync`/`ResolveSellerScopeAsync`, `403`
+otherwise). A Seller can never act on another seller's row, even within the same
+order — the `sellerId` a Seller might pass is ignored outright and their own is
+always used instead.
+
+- **`POST /checkout/reconciliation/transactions/{orderId}/confirm?sellerId=`** and
+  **`.../paid`** — the cash-on-pickup / unpaid-hold equivalent: the caller confirms
+  receipt, then marks **their own seller row** fully paid/reconciled
+  (`SellerPayment.PaymentStatus`: `Pending` → `Confirmed` → `Paid`), via
+  `Order.ConfirmSellerPayment`/`Order.MarkSellerPaid`. `sellerId` is required from
+  an Admin when the order has products from more than one seller (optional/ignored
+  otherwise); a Seller's own seller id is always substituted regardless of what (if
+  anything) is sent. Who did it is recorded on that seller's row
+  (`SellerPayment.ConfirmedByUserId`/`ReconciledByUserId`).
+- **`POST /checkout/reconciliation/transactions/{orderId}/sync`** — calls
   `GET /v1/checkout-sessions/{id}` **and**, if one was created, `GET
   /v1/payment-codes/{id}` (the customer may have paid via either the hosted
   redirect or the dialled USSD code), updates the stored statuses, and reconciles
-  the order: either one reporting `completed` → `Order.MarkPaid()` (and best-effort
-  cancels whichever channel is still open, so it can't be used for a second
-  payment); both dead (`cancelled`/`expired`) → `Order.CancelUnpaid()`. Use this to
+  the order: either one reporting `completed` → `Order.MarkAllSellersPaid()` (and
+  best-effort cancels whichever channel is still open, so it can't be used for a
+  second payment); both dead (`cancelled`/`expired`) → `Order.CancelUnpaid()`. This
+  marks **every** seller's row on the order paid at once — deliberately, since
+  Monime collected one lump sum for the whole cart, so it's an external fact about
+  the order as a whole, not one seller reconciling another's products. Use this to
   manually check on an order stuck at `Pending`, or wire it into a scheduled job
   once Monime's webhook is stable.
-- **`POST /admin/checkout/transactions/{orderId}/confirm`** and **`.../paid`** — the
-  cash-on-pickup / unpaid-hold equivalent: an admin confirms receipt, then marks the
-  order fully paid/reconciled (`PaymentStatus`: `Pending` → `Confirmed` → `Paid`).
-- **`GET /admin/checkout/transactions`** — the reconciliation grid: every order's
-  `paymentMethod`/`paymentStatus`, filterable by either, across all three flows (see
-  README.admin.md for the full shape and role wiring).
+- **`GET /checkout/reconciliation/transactions`** — the reconciliation grid: every
+  order the caller can see, with the order-wide `paymentMethod`/`paymentStatus`
+  plus a `sellerPayments` breakdown — full for an Admin, restricted to just the
+  caller's own row for a Seller (see README.admin.md for the full shape). The
+  `paymentStatus` query filter is matched against the caller's own row for a
+  Seller, not the order aggregate.
+
+`GET /checkout/reconciliation/sessions[/{id}]` (the raw Monime session/audit
+detail — see §8) stays **Admin-only** — it isn't seller-scoped and spans every order
+on the platform.
 
 **Follow-up once Monime's webhook is stable:** add a receiver that verifies Monime's
 signature, looks up `CheckoutSession` by `MonimeSessionId`, and calls the same
 `SyncMonimeSessionAsync` logic — it's already idempotent (re-running it against an
-already-`Paid` order is a no-op via `Order.MarkPaid`'s guard).
+already-`Paid` order is a no-op via `Order.MarkAllSellersPaid`'s guard).
 
 ## 8. Idempotency & auditing
 
@@ -265,7 +298,7 @@ already-`Paid` order is a no-op via `Order.MarkPaid`'s guard).
 - **HTTP status mapping:** Monime 4xx → this API's `400` (the caller's input was bad
   — invalid currency, disabled account, etc.); anything else, including no response
   at all → `502` (the payment provider, not the caller, was the problem). See
-  `CheckoutController`/`AdminCheckoutController`'s `catch (MonimeApiException ex)`.
+  `CheckoutController`/`CheckoutReconciliationController`'s `catch (MonimeApiException ex)`.
 - **Fields Monime might reshape** (raw session payload) are stored as a verbatim
   JSON text column (`CheckoutSession.RawResponseJson`) rather than modeled
   strictly, refreshed on every `sync` call — schema drift on Monime's side won't
@@ -274,8 +307,15 @@ already-`Paid` order is a no-op via `Order.MarkPaid`'s guard).
 ## 9. Known limitations / follow-ups
 
 - **No webhook receiver** — see §7; Monime's own docs mark checkout-session events
-  as not yet available. Reconciliation today is admin-triggered (`.../sync`) or, for
-  cash flows, admin-confirmed by hand.
+  as not yet available. Reconciliation today is admin/seller-triggered (`.../sync`)
+  or, for cash flows, confirmed by hand by an admin or the seller who owns that
+  product.
+- **Pre-existing orders have no per-seller breakdown.** `Order.SellerPayments` was
+  introduced after orders already existed in the database; the migration backfills
+  it as an empty list for those rows rather than reverse-engineering a breakdown
+  from `Order.Items`. Reconciling one of these legacy orders returns "seller has no
+  products in this order" until/unless a data migration backfills real
+  `SellerPayment` rows for them — new orders are unaffected.
 - **`GET /v1/checkout-sessions` (list) isn't wired up.** Monime exposes a list
   endpoint; this backend only ever fetches sessions it already knows the id for
   (via `GetSessionAsync`), since every session here originates from an order this

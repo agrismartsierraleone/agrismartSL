@@ -331,12 +331,6 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("CheckoutSessionId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTimeOffset?>("ConfirmedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ConfirmedByAdminId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -358,11 +352,10 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<DateTimeOffset?>("ReconciledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ReconciledByAdminId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("SellerPayments")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("SellerPayments");
 
                     b.Property<string>("Status")
                         .IsRequired()

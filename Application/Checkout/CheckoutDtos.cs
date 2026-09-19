@@ -58,7 +58,12 @@ public record CheckoutAuditLogDto(
     Guid? CheckoutSessionId,
     DateTimeOffset CreatedAt);
 
-/// <summary>One row in the admin reconciliation view — an order's payment state, regardless of which of the three checkout paths created it.</summary>
+/// <summary>
+/// One row in the reconciliation view — an order's payment state, regardless of which of the three
+/// checkout paths created it. <see cref="PaymentStatus"/> is the order-wide aggregate (every seller's
+/// portion paid); <see cref="SellerPayments"/> is the actual per-seller breakdown a reconciliation
+/// action operates on. An Admin sees every seller's row here; a Seller sees only their own.
+/// </summary>
 public record OrderPaymentDto(
     Guid OrderId,
     OrderCustomerDto Customer,
@@ -72,8 +77,16 @@ public record OrderPaymentDto(
     string? MonimeStatus,
     string? UssdCode,
     string? PaymentCodeStatus,
-    DateTimeOffset? ConfirmedAt,
-    Guid? ConfirmedByAdminId,
-    DateTimeOffset? ReconciledAt,
-    Guid? ReconciledByAdminId,
+    IReadOnlyList<SellerPaymentDto> SellerPayments,
     DateTimeOffset CreatedAt);
+
+/// <summary>One seller's own reconciliation state for their products within an order — never another seller's.</summary>
+public record SellerPaymentDto(
+    Guid SellerId,
+    string SellerName,
+    decimal Subtotal,
+    PaymentStatus PaymentStatus,
+    DateTimeOffset? ConfirmedAt,
+    Guid? ConfirmedByUserId,
+    DateTimeOffset? ReconciledAt,
+    Guid? ReconciledByUserId);

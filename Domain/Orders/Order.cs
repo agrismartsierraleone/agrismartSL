@@ -14,19 +14,26 @@ public class Order : Entity
     public DateTimeOffset CreatedAt { get; private init; }
 
     public PaymentMethod PaymentMethod { get; private init; }
+
+    /// <summary>
+    /// Order-wide aggregate, derived from <see cref="SellerPayments"/>: <c>Paid</c> only once every
+    /// seller's portion is paid, <c>Pending</c> if any seller's portion still is, else <c>Confirmed</c>.
+    /// Persisted (recomputed on every mutation) so it stays queryable/filterable in SQL.
+    /// </summary>
     public PaymentStatus PaymentStatus { get; private set; }
+
+    /// <summary>
+    /// One row per distinct seller among <see cref="Items"/> — a multi-vendor order's payment is
+    /// reconciled seller-by-seller, never as one lump action a single seller could apply to everyone
+    /// else's products too.
+    /// </summary>
+    public IReadOnlyList<SellerPayment> SellerPayments { get; private set; }
 
     /// <summary>Set only for <see cref="PaymentMethod.UnpaidHold"/> orders — when the price/stock hold lapses.</summary>
     public DateTimeOffset? HoldExpiresAt { get; private init; }
 
     /// <summary>Set once a Monime checkout session has been created for this order (<see cref="PaymentMethod.MonimeOnline"/> only).</summary>
     public Guid? CheckoutSessionId { get; private set; }
-
-    public DateTimeOffset? ConfirmedAt { get; private set; }
-    public Guid? ConfirmedByAdminId { get; private set; }
-
-    public DateTimeOffset? ReconciledAt { get; private set; }
-    public Guid? ReconciledByAdminId { get; private set; }
 
     private Order(Guid userId, IReadOnlyList<OrderItem> items, PaymentMethod paymentMethod, DateTimeOffset? holdExpiresAt)
     {
@@ -38,12 +45,14 @@ public class Order : Entity
         PaymentMethod = paymentMethod;
         PaymentStatus = PaymentStatus.Pending;
         HoldExpiresAt = holdExpiresAt;
+        SellerPayments = items.Select(item => item.SellerId).Distinct().Select(SellerPayment.CreatePending).ToList();
     }
 
     // EF Core
     private Order()
     {
         Items = new List<OrderItem>();
+        SellerPayments = new List<SellerPayment>();
     }
 
     public static Order Create(Guid userId, IReadOnlyList<OrderItem> items, PaymentMethod paymentMethod)
@@ -76,30 +85,55 @@ public class Order : Entity
         CheckoutSessionId = checkoutSessionId;
     }
 
-    /// <summary>An admin confirms payment was received (e.g. cash handed over at pickup), pending final reconciliation.</summary>
-    public void ConfirmPayment(Guid adminId)
+    public SellerPayment? GetSellerPayment(Guid sellerId) => SellerPayments.FirstOrDefault(payment => payment.SellerId == sellerId);
+
+    /// <summary>A seller (or admin acting for them) confirms payment was received for their own products in this order — never another seller's.</summary>
+    public void ConfirmSellerPayment(Guid sellerId, Guid userId)
     {
-        if (PaymentStatus != PaymentStatus.Pending)
+        var payment = GetSellerPayment(sellerId)
+                      ?? throw new InvalidOperationException($"Seller '{sellerId}' has no products in this order.");
+
+        if (payment.PaymentStatus != PaymentStatus.Pending)
         {
             throw new InvalidOperationException("Only a pending payment can be confirmed.");
         }
 
-        PaymentStatus = PaymentStatus.Confirmed;
-        ConfirmedAt = DateTimeOffset.UtcNow;
-        ConfirmedByAdminId = adminId;
+        ReplaceSellerPayment(payment with { PaymentStatus = PaymentStatus.Confirmed, ConfirmedAt = DateTimeOffset.UtcNow, ConfirmedByUserId = userId });
     }
 
-    /// <summary>Marks the order as fully paid/reconciled. <paramref name="adminId"/> is null when Monime itself confirmed payment.</summary>
-    public void MarkPaid(Guid? adminId)
+    /// <summary>A seller (or admin acting for them) marks their own products in this order as fully paid/reconciled.</summary>
+    public void MarkSellerPaid(Guid sellerId, Guid? userId)
+    {
+        var payment = GetSellerPayment(sellerId)
+                      ?? throw new InvalidOperationException($"Seller '{sellerId}' has no products in this order.");
+
+        if (payment.PaymentStatus == PaymentStatus.Paid)
+        {
+            throw new InvalidOperationException("Payment is already reconciled as paid.");
+        }
+
+        ReplaceSellerPayment(payment with { PaymentStatus = PaymentStatus.Paid, ReconciledAt = DateTimeOffset.UtcNow, ReconciledByUserId = userId });
+    }
+
+    /// <summary>
+    /// Marks every seller's portion paid at once — used only when a single external event covers the
+    /// whole order (Monime charges the customer once for the entire cart), never triggered by one
+    /// seller acting on another's behalf.
+    /// </summary>
+    public void MarkAllSellersPaid(Guid? userId)
     {
         if (PaymentStatus == PaymentStatus.Paid)
         {
             throw new InvalidOperationException("Payment is already reconciled as paid.");
         }
 
-        PaymentStatus = PaymentStatus.Paid;
-        ReconciledAt = DateTimeOffset.UtcNow;
-        ReconciledByAdminId = adminId;
+        var now = DateTimeOffset.UtcNow;
+        SellerPayments = SellerPayments
+            .Select(payment => payment.PaymentStatus == PaymentStatus.Paid
+                ? payment
+                : payment with { PaymentStatus = PaymentStatus.Paid, ReconciledAt = now, ReconciledByUserId = userId })
+            .ToList();
+        RecomputeAggregatePaymentStatus();
     }
 
     /// <summary>Cancels an order whose price/stock hold lapsed unpaid (<see cref="PaymentMethod.UnpaidHold"/>) or whose Monime session expired/was cancelled.</summary>
@@ -111,5 +145,18 @@ public class Order : Entity
         }
 
         Status = OrderStatus.Cancelled;
+    }
+
+    private void ReplaceSellerPayment(SellerPayment updated)
+    {
+        SellerPayments = SellerPayments.Select(payment => payment.SellerId == updated.SellerId ? updated : payment).ToList();
+        RecomputeAggregatePaymentStatus();
+    }
+
+    private void RecomputeAggregatePaymentStatus()
+    {
+        PaymentStatus = SellerPayments.All(payment => payment.PaymentStatus == PaymentStatus.Paid) ? PaymentStatus.Paid
+            : SellerPayments.Any(payment => payment.PaymentStatus == PaymentStatus.Pending) ? PaymentStatus.Pending
+            : PaymentStatus.Confirmed;
     }
 }

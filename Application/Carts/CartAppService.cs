@@ -65,7 +65,7 @@ public class CartAppService(ICartRepository cartRepository, IMarketRepository ma
         await cartRepository.UpdateAsync(cart, cancellationToken);
     }
 
-    public async Task<OrderDto> CheckoutAsync(Guid userId, CancellationToken cancellationToken = default)
+    public async Task<OrderDto> CheckoutAsync(Guid userId, CartCheckoutRequest request, CancellationToken cancellationToken = default)
     {
         var cart = await GetOrCreateCartAsync(userId, cancellationToken);
         if (cart.Items.Count == 0)
@@ -74,7 +74,8 @@ public class CartAppService(ICartRepository cartRepository, IMarketRepository ma
         }
 
         var orderRequest = new CreateOrderRequest(
-            cart.Items.Select(item => new OrderItemRequest(item.ProductId, item.Quantity)).ToList());
+            cart.Items.Select(item => new OrderItemRequest(item.ProductId, item.Quantity)).ToList(),
+            request.PaymentMethod);
 
         var order = await orderAppService.CreateOrderAsync(userId, orderRequest, cancellationToken);
 

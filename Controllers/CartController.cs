@@ -47,11 +47,11 @@ public class CartController(CartAppService cartAppService, ICurrentUserService c
         return NoContent();
     }
 
-    /// <summary>Converts the caller's current cart into an order, then empties the cart.</summary>
+    /// <summary>Converts the caller's current cart into a cash-on-pickup or unpaid-hold order, then empties the cart. Use POST /checkout/sessions to pay online via Monime instead.</summary>
     [HttpPost("checkout")]
-    public async Task<ActionResult<OrderDto>> Checkout(CancellationToken cancellationToken)
+    public async Task<ActionResult<OrderDto>> Checkout(CartCheckoutRequest request, CancellationToken cancellationToken)
     {
-        var order = await cartAppService.CheckoutAsync(currentUser.UserId, cancellationToken);
+        var order = await cartAppService.CheckoutAsync(currentUser.UserId, request, cancellationToken);
         return Ok(order);
     }
 

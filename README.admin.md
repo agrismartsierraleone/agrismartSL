@@ -108,12 +108,105 @@ Create/Update body: `{ "name": "string", "contactEmail": "string?", "contactPhon
 | GET | `/orders/all` | Admin | Every order, with buyer + seller per line item |
 | GET | `/orders/mine-as-seller` | Seller | Orders containing the caller's own products only |
 
-`OrderWithCustomerDto` (`/orders/all`): `{ "id", "customer": { "id", "name", "email" }, "items": [OrderItemDto], "totalAmount", "status", "createdAt" }`
+`OrderWithCustomerDto` (`/orders/all`): `{ "id", "customer": { "id", "name", "email" }, "items": [OrderItemDto], "totalAmount", "status", "createdAt", "paymentMethod", "paymentStatus", "holdExpiresAt", "checkoutSessionId" }`
 
-`OrderForSellerDto` (`/orders/mine-as-seller`): same shape, but `items` is filtered to the seller's own line items and `subtotal` replaces `totalAmount`.
+`OrderForSellerDto` (`/orders/mine-as-seller`): `{ "id", "customer", "items": [OrderItemDto], "subtotal", "status", "createdAt", "paymentMethod", "paymentStatus" }` — `items` is filtered to the seller's own line items and `subtotal` replaces `totalAmount`.
 
 `OrderItemDto`: `{ "productId", "productName", "unitPrice", "quantity", "lineTotal", "sellerId", "sellerName" }`
-`status` is one of: `pending, confirmed, shipped, delivered, cancelled`.
+`status` (fulfillment) is one of: `pending, confirmed, shipped, delivered, cancelled` — a separate concept from `paymentStatus` (money), see Payment Reconciliation below. `paymentMethod` is `monimeOnline | cashOnPickup | unpaidHold`. `holdExpiresAt` is only set for `unpaidHold` orders; `checkoutSessionId` only for `monimeOnline` orders.
+
+---
+
+## Payment Reconciliation — `/admin/checkout` (Admin only)
+
+Covers all three ways a buyer can complete a purchase (see `MONIME-INTEGRATION-README.md`
+§2): pay online via Monime, pay cash on pickup, or place an order unpaid (24h hold).
+`paymentStatus` on an order moves `pending → confirmed → paid` regardless of which
+path created it — use this section to build the "pending / confirmed / paid
+transactions" view and the actions to move an order between those states.
+
+### Transactions grid — `/admin/checkout/transactions`
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/checkout/transactions?paymentStatus=&paymentMethod=` | Every order's payment state; both query params optional |
+| POST | `/admin/checkout/transactions/{orderId}/confirm` | `pending` → `confirmed` (e.g. cash handed over at pickup) |
+| POST | `/admin/checkout/transactions/{orderId}/paid` | → `paid` (final reconciliation/settlement) |
+| POST | `/admin/checkout/transactions/{orderId}/sync` | **Monime orders only** — re-fetches the session from Monime and auto-reconciles |
+
+`paymentStatus` query value is `pending`, `confirmed`, or `paid`; `paymentMethod` is `monimeOnline`, `cashOnPickup`, or `unpaidHold`. Send either, both, or neither.
+
+`OrderPaymentDto` (returned by all four endpoints above):
+```json
+{
+  "orderId": "guid",
+  "customer": { "id": "guid", "name": "string", "email": "string" },
+  "totalAmount": 0,
+  "paymentMethod": "monimeOnline | cashOnPickup | unpaidHold",
+  "paymentStatus": "pending | confirmed | paid",
+  "orderStatus": "pending | confirmed | shipped | delivered | cancelled",
+  "holdExpiresAt": "date | null",
+  "checkoutSessionId": "guid | null",
+  "monimeSessionId": "string | null",
+  "monimeStatus": "pending | completed | cancelled | expired | null",
+  "ussdCode": "string | null",
+  "paymentCodeStatus": "pending | processing | completed | expired | cancelled | null",
+  "confirmedAt": "date | null",
+  "confirmedByAdminId": "guid | null",
+  "reconciledAt": "date | null",
+  "reconciledByAdminId": "guid | null",
+  "createdAt": "date"
+}
+```
+
+`ussdCode` is the real, per-transaction USSD dial string Monime generated for this
+order (e.g. `*715*18284#`) — worth showing in the grid/detail view for support to
+read back to a customer who says "I paid by USSD but it still shows pending."
+`paymentCodeStatus` is that payment code's own lifecycle, independent of
+`monimeStatus` (the checkout session's) — either reaching `completed` is what
+`.../sync` treats as paid.
+
+Suggested UI: a table with a status filter (Pending / Confirmed / Paid tabs) and a
+payment-method column/filter. Row actions: **Confirm** (only enabled while
+`pending`), **Mark Paid** (enabled once `pending` or `confirmed`), and — only for
+rows where `paymentMethod` is `monimeOnline` and neither `monimeStatus` nor
+`paymentCodeStatus` is `completed` yet — a **Sync with Monime** action that calls
+`.../sync` to pull the latest status from both the checkout session and the
+payment code instead of waiting on a webhook (Monime's checkout-session webhook
+isn't stable yet — see `MONIME-INTEGRATION-README.md` §7). `.../confirm` and
+`.../paid` return `409` if the order isn't in the expected state (e.g. already
+`paid`) — surface the message rather than retrying. `.../sync` can return
+`400`/`502` if Monime itself rejects the lookup or can't be reached.
+
+### Raw Monime session detail — `/admin/checkout/sessions`
+
+Support/troubleshooting visibility into the underlying Monime call — "what actually
+happened to this customer's payment," independent of the reconciliation grid above.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/checkout/sessions` | Every checkout session ever created |
+| GET | `/admin/checkout/sessions/{id}` | One session's full detail, incl. every create/sync attempt against it |
+
+`CheckoutSessionAdminDto`:
+```json
+{
+  "id": "guid", "orderId": "guid", "userId": "guid", "monimeSessionId": "scs-...",
+  "status": "pending | completed | cancelled | expired",
+  "redirectUrl": "string?", "cancelUrl": "string?", "successUrl": "string?",
+  "expireTime": "date?", "idempotencyKey": "string", "rawResponseJson": "string (raw Monime payload)",
+  "paymentCodeId": "string?", "ussdCode": "string?", "paymentCodeStatus": "string?", "paymentCodeExpireTime": "date?",
+  "createdAt": "date", "lastSyncedAt": "date?",
+  "auditLogs": [
+    {
+      "id": "guid", "orderId": "guid?", "userId": "guid?", "idempotencyKey": "string",
+      "requestJson": "string", "responseStatusCode": 0, "responseJson": "string?",
+      "success": true, "errorMessage": "string?", "checkoutSessionId": "guid?", "createdAt": "date"
+    }
+  ]
+}
+```
+`auditLogs` includes the checkout-session create attempt, the (separate) payment-code create attempt, and every later `.../sync` call against this session — read top-to-bottom (newest first) for a timeline of what Monime returned each time. `paymentCodeId`/`ussdCode`/`paymentCodeStatus` are null only if the payment-code create call failed (non-fatal — the redirect flow still worked); check `auditLogs` for that failed attempt's `errorMessage`.
 
 ---
 
@@ -217,3 +310,4 @@ Status codes: `400` validation, `401` missing/expired token, `403` wrong role or
 | Audit log | ❌ | ✅ |
 | View all orders | ❌ | ✅ |
 | View own orders (as seller) | ✅ | ✅ (via `/orders/all`) |
+| Payment reconciliation (`/admin/checkout/*`) | ❌ | ✅ |

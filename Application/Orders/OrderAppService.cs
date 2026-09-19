@@ -18,6 +18,11 @@ public class OrderAppService(
             throw new ValidationException("An order must contain at least one item.");
         }
 
+        if (request.PaymentMethod == PaymentMethod.MonimeOnline)
+        {
+            throw new ValidationException("Use POST /checkout/sessions to pay online via Monime — this endpoint is for cash-on-pickup or unpaid-hold orders only.");
+        }
+
         var items = new List<OrderItem>();
         foreach (var line in request.Items)
         {
@@ -32,7 +37,24 @@ public class OrderAppService(
             items.Add(new OrderItem(product.Id, product.Name, product.Price, line.Quantity, product.SellerId, product.Seller.Name));
         }
 
-        var order = Order.Create(userId, items);
+        var order = Order.Create(userId, items, request.PaymentMethod);
+        await orderRepository.AddAsync(order, cancellationToken);
+        return ToDto(order);
+    }
+
+    /// <summary>Used only by <c>CheckoutAppService</c> to place the underlying order for a Monime checkout session.</summary>
+    internal async Task<OrderDto> CreateMonimeOrderAsync(Guid userId, IReadOnlyList<OrderItemRequest> items, CancellationToken cancellationToken = default)
+    {
+        var orderItems = new List<OrderItem>();
+        foreach (var line in items)
+        {
+            var product = await marketRepository.GetByIdAsync(line.ProductId, cancellationToken)
+                          ?? throw new NotFoundException($"Product '{line.ProductId}' was not found.");
+
+            orderItems.Add(new OrderItem(product.Id, product.Name, product.Price, line.Quantity, product.SellerId, product.Seller.Name));
+        }
+
+        var order = Order.Create(userId, orderItems, PaymentMethod.MonimeOnline);
         await orderRepository.AddAsync(order, cancellationToken);
         return ToDto(order);
     }
@@ -104,7 +126,11 @@ public class OrderAppService(
         order.Items.Select(ToDto).ToList(),
         order.TotalAmount,
         order.Status,
-        order.CreatedAt);
+        order.CreatedAt,
+        order.PaymentMethod,
+        order.PaymentStatus,
+        order.HoldExpiresAt,
+        order.CheckoutSessionId);
 
     private static OrderWithCustomerDto ToDtoWithCustomer(Order order, User? user) => new(
         order.Id,
@@ -112,7 +138,11 @@ public class OrderAppService(
         order.Items.Select(ToDto).ToList(),
         order.TotalAmount,
         order.Status,
-        order.CreatedAt);
+        order.CreatedAt,
+        order.PaymentMethod,
+        order.PaymentStatus,
+        order.HoldExpiresAt,
+        order.CheckoutSessionId);
 
     private static OrderForSellerDto ToDtoForSeller(Order order, Guid sellerId, User? user)
     {
@@ -123,6 +153,8 @@ public class OrderAppService(
             sellerItems,
             sellerItems.Sum(item => item.LineTotal),
             order.Status,
-            order.CreatedAt);
+            order.CreatedAt,
+            order.PaymentMethod,
+            order.PaymentStatus);
     }
 }

@@ -16,11 +16,16 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(order => order.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(order => order.CreatedAt).IsRequired();
 
+        builder.Property(order => order.PaymentMethod).HasConversion<string>().HasMaxLength(20);
+        builder.Property(order => order.PaymentStatus).HasConversion<string>().HasMaxLength(20);
+
         var itemsProperty = builder.Property(order => order.Items)
             .HasColumnName("Items")
             .HasConversion(JsonValueConverters.ForList<OrderItem>());
         itemsProperty.Metadata.SetValueComparer(JsonValueConverters.ListComparer<OrderItem>());
 
         builder.HasIndex(order => order.UserId);
+        builder.HasIndex(order => order.PaymentStatus);
+        builder.HasIndex(order => order.CheckoutSessionId);
     }
 }

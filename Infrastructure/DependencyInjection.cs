@@ -2,6 +2,7 @@ using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Application.Common;
 using AgrismartAPI.Domain.Audit;
 using AgrismartAPI.Domain.Carts;
+using AgrismartAPI.Domain.Checkout;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
 using AgrismartAPI.Domain.Scans;
@@ -11,6 +12,8 @@ using AgrismartAPI.Infrastructure.Auth;
 using AgrismartAPI.Infrastructure.Diagnosis;
 using AgrismartAPI.Infrastructure.Diagnosis.Kindwise;
 using AgrismartAPI.Infrastructure.Email;
+using AgrismartAPI.Infrastructure.Orders;
+using AgrismartAPI.Infrastructure.Payments.Monime;
 using AgrismartAPI.Infrastructure.Persistence;
 using AgrismartAPI.Infrastructure.Persistence.Repositories;
 using AgrismartAPI.Infrastructure.Storage;
@@ -32,6 +35,7 @@ public static class DependencyInjection
         services.Configure<KindwiseSettings>(configuration.GetSection(KindwiseSettings.SectionName));
         services.Configure<SendGridSettings>(configuration.GetSection(SendGridSettings.SectionName));
         services.Configure<AppLinksSettings>(configuration.GetSection(AppLinksSettings.SectionName));
+        services.Configure<MonimeSettings>(configuration.GetSection(MonimeSettings.SectionName));
 
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
@@ -46,6 +50,8 @@ public static class DependencyInjection
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<ICartRepository, CartRepository>();
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+        services.AddScoped<ICheckoutSessionRepository, CheckoutSessionRepository>();
+        services.AddScoped<ICheckoutAuditLogRepository, CheckoutAuditLogRepository>();
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
@@ -72,6 +78,9 @@ public static class DependencyInjection
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddSingleton<IBiometricChallengeStore, BiometricChallengeStore>();
         services.AddSingleton<IBiometricSignatureVerifier, BiometricSignatureVerifier>();
+
+        services.AddHttpClient<IMonimeCheckoutClient, MonimeCheckoutClient>();
+        services.AddHostedService<OrderHoldExpiryService>();
 
         return services;
     }

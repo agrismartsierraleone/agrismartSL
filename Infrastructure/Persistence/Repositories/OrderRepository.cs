@@ -30,4 +30,16 @@ public class OrderRepository(AppDbContext dbContext) : IOrderRepository
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task UpdateAsync(Order order, CancellationToken cancellationToken = default)
+    {
+        dbContext.Orders.Update(order);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(Order order, CancellationToken cancellationToken = default)
+    {
+        dbContext.Orders.Remove(order);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 }

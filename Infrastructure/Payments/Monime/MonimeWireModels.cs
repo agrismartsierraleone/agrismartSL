@@ -74,34 +74,3 @@ internal class MonimeCheckoutSessionResult
     public DateTimeOffset? ExpireTime { get; set; }
     public DateTimeOffset? CreateTime { get; set; }
 }
-
-// Payment codes (https://docs.monime.io/apis/versions/caph-2025-08-23/payment-code/object.md) are a
-// separate Monime resource: a dynamic, per-transaction USSD dial string the customer can use instead
-// of (or alongside) the hosted checkout-session redirect. The "18284" in an example like
-// "*715*18284#" is generated per payment code — there is no static merchant USSD code.
-
-internal class MonimeCreatePaymentCodeBody
-{
-    public required string Name { get; set; }
-    public string Mode { get; set; } = "one_time";
-    public required MonimePrice Amount { get; set; }
-
-    /// <summary>Go duration string, e.g. "1h". Monime's own default is "10m" — too short to match a ~1h checkout-session window.</summary>
-    public string? Duration { get; set; }
-
-    public string? Reference { get; set; }
-}
-
-internal class MonimePaymentCodeResult
-{
-    public required string Id { get; set; }
-
-    /// <summary>"pending" | "processing" | "completed" | "expired" | "cancelled".</summary>
-    public required string Status { get; set; }
-
-    public string? Name { get; set; }
-    public string? UssdCode { get; set; }
-    public string? Reference { get; set; }
-    public DateTimeOffset? ExpireTime { get; set; }
-    public DateTimeOffset? CreateTime { get; set; }
-}

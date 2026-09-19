@@ -7,11 +7,6 @@ namespace AgrismartAPI.Application.Checkout;
 public record CreateCheckoutSessionRequest(string? SuccessUrl = null, string? CancelUrl = null);
 
 /// <summary>Thin, customer-facing view of a Monime checkout session — just enough to redirect and show status.</summary>
-/// <param name="UssdCode">
-/// The real, per-transaction USSD dial string (e.g. "*715*18284#") from a Monime payment code created
-/// alongside this session — not a static merchant code. Null if that create call failed; the redirect
-/// flow (<paramref name="RedirectUrl"/>) still works either way.
-/// </param>
 public record CheckoutSessionDto(
     Guid Id,
     Guid OrderId,
@@ -20,9 +15,7 @@ public record CheckoutSessionDto(
     string? RedirectUrl,
     DateTimeOffset? ExpireTime,
     decimal Amount,
-    string Currency,
-    string? UssdCode,
-    DateTimeOffset? UssdCodeExpireTime);
+    string Currency);
 
 /// <summary>Admin-only, full view of a checkout session including the raw Monime payload and its attempt history.</summary>
 public record CheckoutSessionAdminDto(
@@ -37,10 +30,6 @@ public record CheckoutSessionAdminDto(
     DateTimeOffset? ExpireTime,
     string IdempotencyKey,
     string RawResponseJson,
-    string? PaymentCodeId,
-    string? UssdCode,
-    string? PaymentCodeStatus,
-    DateTimeOffset? PaymentCodeExpireTime,
     DateTimeOffset CreatedAt,
     DateTimeOffset? LastSyncedAt,
     IReadOnlyList<CheckoutAuditLogDto> AuditLogs);
@@ -75,8 +64,6 @@ public record OrderPaymentDto(
     Guid? CheckoutSessionId,
     string? MonimeSessionId,
     string? MonimeStatus,
-    string? UssdCode,
-    string? PaymentCodeStatus,
     IReadOnlyList<SellerPaymentDto> SellerPayments,
     DateTimeOffset CreatedAt);
 

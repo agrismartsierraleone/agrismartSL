@@ -19,13 +19,8 @@ public class CheckoutSessionConfiguration : IEntityTypeConfiguration<CheckoutSes
         builder.Property(session => session.IdempotencyKey).IsRequired().HasMaxLength(64);
         builder.Property(session => session.RawResponseJson).IsRequired().HasColumnType("text");
 
-        builder.Property(session => session.PaymentCodeId).HasMaxLength(100);
-        builder.Property(session => session.UssdCode).HasMaxLength(64);
-        builder.Property(session => session.PaymentCodeStatus).HasMaxLength(20);
-
         builder.HasIndex(session => session.OrderId).IsUnique();
         builder.HasIndex(session => session.UserId);
         builder.HasIndex(session => session.MonimeSessionId).IsUnique();
-        builder.HasIndex(session => session.PaymentCodeId).IsUnique();
     }
 }

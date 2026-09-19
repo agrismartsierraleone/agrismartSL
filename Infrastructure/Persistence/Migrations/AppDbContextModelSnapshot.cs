@@ -171,17 +171,6 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTimeOffset?>("PaymentCodeExpireTime")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("PaymentCodeId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("PaymentCodeStatus")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<string>("RawResponseJson")
                         .IsRequired()
                         .HasColumnType("text");
@@ -202,19 +191,12 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("UssdCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.HasKey("Id");
 
                     b.HasIndex("MonimeSessionId")
                         .IsUnique();
 
                     b.HasIndex("OrderId")
-                        .IsUnique();
-
-                    b.HasIndex("PaymentCodeId")
                         .IsUnique();
 
                     b.HasIndex("UserId");

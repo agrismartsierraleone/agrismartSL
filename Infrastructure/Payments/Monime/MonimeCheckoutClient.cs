@@ -9,10 +9,9 @@ using Microsoft.Extensions.Options;
 namespace AgrismartAPI.Infrastructure.Payments.Monime;
 
 /// <summary>
-/// Talks to Monime's hosted checkout-session and payment-code APIs
-/// (https://docs.monime.io/apis/versions/caph-2025-08-23). Unwraps the {success, messages, result}
-/// envelope and throws <see cref="MonimeApiException"/> on any failure (Monime-rejected or network) —
-/// callers are responsible for persistence/auditing.
+/// Talks to Monime's hosted checkout-session API (https://docs.monime.io/apis/versions/caph-2025-08-23).
+/// Unwraps the {success, messages, result} envelope and throws <see cref="MonimeApiException"/> on any
+/// failure (Monime-rejected or network) — callers are responsible for persistence/auditing.
 /// </summary>
 public class MonimeCheckoutClient(HttpClient httpClient, IOptions<MonimeSettings> options) : IMonimeCheckoutClient
 {
@@ -53,84 +52,26 @@ public class MonimeCheckoutClient(HttpClient httpClient, IOptions<MonimeSettings
         };
 
         var requestJson = JsonSerializer.Serialize(body, WireJsonOptions);
-        var (httpResponse, responseBody) = await PostAsync("/v1/checkout-sessions", requestJson, idempotencyKey, cancellationToken);
-        var result = Unwrap<MonimeCheckoutSessionResult>(httpResponse, responseBody, requestJson, "checkout-session");
 
-        var session = new MonimeSessionInfo(result.Id, result.Status, result.RedirectUrl, result.CancelUrl, result.SuccessUrl, result.ExpireTime);
-        return new MonimeSessionCallResult(session, requestJson, responseBody, (int)httpResponse.StatusCode);
-    }
-
-    public async Task<MonimeSessionCallResult> GetSessionAsync(string monimeSessionId, CancellationToken cancellationToken = default)
-    {
-        var (httpResponse, responseBody) = await GetAsync($"/v1/checkout-sessions/{monimeSessionId}", cancellationToken);
-        var result = Unwrap<MonimeCheckoutSessionResult>(httpResponse, responseBody, requestJson: null, "checkout-session");
-
-        var session = new MonimeSessionInfo(result.Id, result.Status, result.RedirectUrl, result.CancelUrl, result.SuccessUrl, result.ExpireTime);
-        return new MonimeSessionCallResult(session, string.Empty, responseBody, (int)httpResponse.StatusCode);
-    }
-
-    public Task CancelSessionAsync(string monimeSessionId, CancellationToken cancellationToken = default) =>
-        DeleteAsync($"/v1/checkout-sessions/{monimeSessionId}", cancellationToken);
-
-    public async Task<MonimePaymentCodeCallResult> CreatePaymentCodeAsync(
-        string name, long minorUnitsAmount, string duration, string? reference, string idempotencyKey, CancellationToken cancellationToken = default)
-    {
-        var body = new MonimeCreatePaymentCodeBody
-        {
-            Name = name,
-            Amount = new MonimePrice { Currency = _settings.Currency, Value = minorUnitsAmount },
-            Duration = duration,
-            Reference = reference,
-        };
-
-        var requestJson = JsonSerializer.Serialize(body, WireJsonOptions);
-        var (httpResponse, responseBody) = await PostAsync("/v1/payment-codes", requestJson, idempotencyKey, cancellationToken);
-        var result = Unwrap<MonimePaymentCodeResult>(httpResponse, responseBody, requestJson, "payment code");
-
-        var paymentCode = new MonimePaymentCodeInfo(result.Id, result.Status, result.UssdCode, result.ExpireTime);
-        return new MonimePaymentCodeCallResult(paymentCode, requestJson, responseBody, (int)httpResponse.StatusCode);
-    }
-
-    public async Task<MonimePaymentCodeCallResult> GetPaymentCodeAsync(string paymentCodeId, CancellationToken cancellationToken = default)
-    {
-        var (httpResponse, responseBody) = await GetAsync($"/v1/payment-codes/{paymentCodeId}", cancellationToken);
-        var result = Unwrap<MonimePaymentCodeResult>(httpResponse, responseBody, requestJson: null, "payment code");
-
-        var paymentCode = new MonimePaymentCodeInfo(result.Id, result.Status, result.UssdCode, result.ExpireTime);
-        return new MonimePaymentCodeCallResult(paymentCode, string.Empty, responseBody, (int)httpResponse.StatusCode);
-    }
-
-    public Task CancelPaymentCodeAsync(string paymentCodeId, CancellationToken cancellationToken = default) =>
-        DeleteAsync($"/v1/payment-codes/{paymentCodeId}", cancellationToken);
-
-    private async Task<(HttpResponseMessage Response, string Body)> PostAsync(string path, string requestJson, string idempotencyKey, CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.BaseUrl.TrimEnd('/')}{path}")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.BaseUrl.TrimEnd('/')}/v1/checkout-sessions")
         {
             Content = new StringContent(requestJson, Encoding.UTF8, "application/json"),
         };
         ApplyHeaders(request, idempotencyKey);
-        return await SendAsync(request, requestJson, cancellationToken);
+
+        var (httpResponse, responseBody) = await SendAsync(request, requestJson, cancellationToken);
+
+        return Unwrap(httpResponse, responseBody, requestJson);
     }
 
-    private async Task<(HttpResponseMessage Response, string Body)> GetAsync(string path, CancellationToken cancellationToken)
+    public async Task<MonimeSessionCallResult> GetSessionAsync(string monimeSessionId, CancellationToken cancellationToken = default)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, $"{_settings.BaseUrl.TrimEnd('/')}{path}");
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{_settings.BaseUrl.TrimEnd('/')}/v1/checkout-sessions/{monimeSessionId}");
         ApplyHeaders(request, idempotencyKey: null);
-        return await SendAsync(request, requestJson: null, cancellationToken);
-    }
 
-    private async Task DeleteAsync(string path, CancellationToken cancellationToken)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Delete, $"{_settings.BaseUrl.TrimEnd('/')}{path}");
-        ApplyHeaders(request, idempotencyKey: null);
         var (httpResponse, responseBody) = await SendAsync(request, requestJson: null, cancellationToken);
 
-        if (!httpResponse.IsSuccessStatusCode)
-        {
-            var errorMessage = ExtractMessages(TryParse(responseBody)) ?? "Monime rejected the cancel request.";
-            throw new MonimeApiException(errorMessage, (int)httpResponse.StatusCode, requestJson: null, responseBody);
-        }
+        return Unwrap(httpResponse, responseBody, requestJson: null);
     }
 
     private void ApplyHeaders(HttpRequestMessage request, string? idempotencyKey)
@@ -158,9 +99,18 @@ public class MonimeCheckoutClient(HttpClient httpClient, IOptions<MonimeSettings
         }
     }
 
-    private static T Unwrap<T>(HttpResponseMessage httpResponse, string responseBody, string? requestJson, string resourceName)
+    private static MonimeSessionCallResult Unwrap(HttpResponseMessage httpResponse, string responseBody, string? requestJson)
     {
-        var responseDoc = TryParse(responseBody);
+        JsonDocument? responseDoc;
+        try
+        {
+            responseDoc = JsonDocument.Parse(responseBody);
+        }
+        catch (JsonException)
+        {
+            responseDoc = null;
+        }
+
         using var _ = responseDoc;
 
         JsonElement? resultElement = responseDoc is not null
@@ -171,24 +121,15 @@ public class MonimeCheckoutClient(HttpClient httpClient, IOptions<MonimeSettings
 
         if (!httpResponse.IsSuccessStatusCode || resultElement is null)
         {
-            var errorMessage = ExtractMessages(responseDoc) ?? $"Monime rejected the {resourceName} request.";
+            var errorMessage = ExtractMessages(responseDoc) ?? "Monime rejected the checkout-session request.";
             throw new MonimeApiException(errorMessage, (int)httpResponse.StatusCode, requestJson, responseBody);
         }
 
-        return resultElement.Value.Deserialize<T>(WireJsonOptions)
-               ?? throw new MonimeApiException($"Monime returned an empty {resourceName} result.", (int)httpResponse.StatusCode, requestJson, responseBody);
-    }
+        var sessionResult = resultElement.Value.Deserialize<MonimeCheckoutSessionResult>(WireJsonOptions)
+                             ?? throw new MonimeApiException("Monime returned an empty session result.", (int)httpResponse.StatusCode, requestJson, responseBody);
 
-    private static JsonDocument? TryParse(string json)
-    {
-        try
-        {
-            return JsonDocument.Parse(json);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        var session = new MonimeSessionInfo(sessionResult.Id, sessionResult.Status, sessionResult.RedirectUrl, sessionResult.CancelUrl, sessionResult.SuccessUrl, sessionResult.ExpireTime);
+        return new MonimeSessionCallResult(session, requestJson ?? string.Empty, responseBody, (int)httpResponse.StatusCode);
     }
 
     private static string? ExtractMessages(JsonDocument? doc)

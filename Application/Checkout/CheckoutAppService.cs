@@ -29,9 +29,6 @@ public class CheckoutAppService(
 {
     private readonly MonimeSettings _monime = monimeOptions.Value;
 
-    /// <summary>Matches Monime's checkout-session default expiry (~1h) — well past the payment-code API's own 10-minute default, which would expire long before the redirect page does.</summary>
-    private const string PaymentCodeDuration = "1h";
-
     /// <summary>Creates a Monime checkout session for the caller's current cart, placing the underlying (unpaid) order first.</summary>
     public async Task<CheckoutSessionDto> CreateSessionAsync(Guid userId, CreateCheckoutSessionRequest request, CancellationToken cancellationToken = default)
     {
@@ -73,8 +70,6 @@ public class CheckoutAppService(
                 idempotencyKey,
                 callResult.ResponseJson);
             await checkoutSessionRepository.AddAsync(checkoutSession, cancellationToken);
-
-            await TryAttachPaymentCodeAsync(checkoutSession, order, userId, cancellationToken);
 
             var orderEntity = await orderRepository.GetByIdAsync(order.Id, cancellationToken)
                                ?? throw new InvalidOperationException("Order disappeared immediately after being created.");
@@ -229,110 +224,20 @@ public class CheckoutAppService(
 
         var sessionCall = await monimeClient.GetSessionAsync(session.MonimeSessionId, cancellationToken);
         session.UpdateStatus(sessionCall.Session.Status, sessionCall.ResponseJson);
-
-        // The customer could have paid via either the hosted redirect OR the USSD payment code — check
-        // both channels, since either one completing means the order is paid.
-        var paymentCodeStatus = session.PaymentCodeStatus;
-        if (session.PaymentCodeId is { } paymentCodeId)
-        {
-            try
-            {
-                var codeCall = await monimeClient.GetPaymentCodeAsync(paymentCodeId, cancellationToken);
-                session.UpdatePaymentCodeStatus(codeCall.PaymentCode.Status);
-                paymentCodeStatus = codeCall.PaymentCode.Status;
-            }
-            catch (MonimeApiException)
-            {
-                // Non-fatal: fall back to the session's own status, refresh the payment code next sync.
-            }
-        }
-
         await checkoutSessionRepository.UpdateAsync(session, cancellationToken);
 
-        var isPaid = sessionCall.Session.Status == "completed" || paymentCodeStatus == "completed";
-        var bothChannelsDead = sessionCall.Session.Status is "cancelled" or "expired"
-                               && paymentCodeStatus is null or "cancelled" or "expired";
-
-        if (isPaid && order.PaymentStatus != PaymentStatus.Paid)
+        if (sessionCall.Session.Status == "completed" && order.PaymentStatus != PaymentStatus.Paid)
         {
             order.MarkAllSellersPaid(userId: null);
             await orderRepository.UpdateAsync(order, cancellationToken);
-
-            // Best-effort: stop whichever channel didn't complete, so it can't be used for a second payment.
-            if (sessionCall.Session.Status != "completed")
-            {
-                await TryCancelSessionAsync(session.MonimeSessionId, cancellationToken);
-            }
-
-            if (paymentCodeStatus != "completed" && session.PaymentCodeId is { } stillOpenCodeId)
-            {
-                await TryCancelPaymentCodeAsync(stillOpenCodeId, cancellationToken);
-            }
         }
-        else if (bothChannelsDead && order.Status != OrderStatus.Cancelled && order.PaymentStatus != PaymentStatus.Paid)
+        else if (sessionCall.Session.Status is "cancelled" or "expired" && order.Status != OrderStatus.Cancelled && order.PaymentStatus != PaymentStatus.Paid)
         {
             order.CancelUnpaid();
             await orderRepository.UpdateAsync(order, cancellationToken);
         }
 
         return await BuildOrderPaymentDtoAsync(order, callerId, callerRole, cancellationToken);
-    }
-
-    /// <summary>
-    /// Creates the dynamic, per-transaction USSD payment code for this session (see
-    /// MONIME-INTEGRATION-README.md §2) — a fallback to the hosted redirect page, not a static
-    /// merchant code. Non-fatal: the redirect flow works fine without it.
-    /// </summary>
-    private async Task TryAttachPaymentCodeAsync(CheckoutSession checkoutSession, OrderDto order, Guid userId, CancellationToken cancellationToken)
-    {
-        var paymentCodeIdempotencyKey = Guid.NewGuid().ToString();
-        try
-        {
-            var codeCall = await monimeClient.CreatePaymentCodeAsync(
-                $"Agrismart order {order.Id}",
-                ToMinorUnits(order.TotalAmount),
-                PaymentCodeDuration,
-                reference: order.Id.ToString(),
-                paymentCodeIdempotencyKey,
-                cancellationToken);
-
-            checkoutSession.AttachPaymentCode(codeCall.PaymentCode.PaymentCodeId, codeCall.PaymentCode.UssdCode, codeCall.PaymentCode.Status, codeCall.PaymentCode.ExpireTime);
-            await checkoutSessionRepository.UpdateAsync(checkoutSession, cancellationToken);
-
-            await checkoutAuditLogRepository.AddAsync(
-                CheckoutAuditLog.Create(order.Id, userId, paymentCodeIdempotencyKey, codeCall.RequestJson, codeCall.StatusCode, codeCall.ResponseJson, success: true, errorMessage: null, checkoutSession.Id),
-                cancellationToken);
-        }
-        catch (MonimeApiException ex)
-        {
-            await checkoutAuditLogRepository.AddAsync(
-                CheckoutAuditLog.Create(order.Id, userId, paymentCodeIdempotencyKey, ex.RequestJson ?? string.Empty, ex.StatusCode, ex.ResponseJson, success: false, ex.Message, checkoutSession.Id),
-                cancellationToken);
-        }
-    }
-
-    private async Task TryCancelSessionAsync(string monimeSessionId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await monimeClient.CancelSessionAsync(monimeSessionId, cancellationToken);
-        }
-        catch (MonimeApiException)
-        {
-            // Best-effort cleanup only — Monime rejects this once the session has been initiated anyway.
-        }
-    }
-
-    private async Task TryCancelPaymentCodeAsync(string paymentCodeId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await monimeClient.CancelPaymentCodeAsync(paymentCodeId, cancellationToken);
-        }
-        catch (MonimeApiException)
-        {
-            // Best-effort cleanup only — Monime rejects this once the code has been used anyway.
-        }
     }
 
     public async Task<IReadOnlyList<CheckoutSessionAdminDto>> GetSessionsAdminAsync(CancellationToken cancellationToken = default)
@@ -455,10 +360,6 @@ public class CheckoutAppService(
             session.ExpireTime,
             session.IdempotencyKey,
             session.RawResponseJson,
-            session.PaymentCodeId,
-            session.UssdCode,
-            session.PaymentCodeStatus,
-            session.PaymentCodeExpireTime,
             session.CreatedAt,
             session.LastSyncedAt,
             auditLogs.Select(ToDto).ToList());
@@ -502,8 +403,6 @@ public class CheckoutAppService(
             order.CheckoutSessionId,
             session?.MonimeSessionId,
             session?.Status,
-            session?.UssdCode,
-            session?.PaymentCodeStatus,
             sellerPayments,
             order.CreatedAt);
     }
@@ -529,9 +428,7 @@ public class CheckoutAppService(
         session.RedirectUrl,
         session.ExpireTime,
         amount,
-        _monime.Currency,
-        session.UssdCode,
-        session.PaymentCodeExpireTime);
+        _monime.Currency);
 
     private static long ToMinorUnits(decimal amount) => (long)Math.Round(amount * 100m, MidpointRounding.AwayFromZero);
 }

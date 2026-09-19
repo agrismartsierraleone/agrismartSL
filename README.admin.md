@@ -160,8 +160,6 @@ just because they shared a checkout. A Seller with no linked seller profile gets
   "checkoutSessionId": "guid | null",
   "monimeSessionId": "string | null",
   "monimeStatus": "pending | completed | cancelled | expired | null",
-  "ussdCode": "string | null",
-  "paymentCodeStatus": "pending | processing | completed | expired | cancelled | null",
   "sellerPayments": [
     {
       "sellerId": "guid", "sellerName": "string", "subtotal": 0,
@@ -180,26 +178,20 @@ every seller on the order is paid, `pending` if any seller's row still is, other
 `.../paid` actions operate on — **for an Admin this lists every seller with
 products in the order; for a Seller it contains only their own entry** (other
 sellers' reconciliation state, and who confirmed/reconciled it, is never exposed to
-a Seller who didn't post those products). `ussdCode` is the real, per-transaction
-USSD dial string Monime generated for this order (e.g. `*715*18284#`) — worth
-showing in the grid/detail view for support to read back to a customer who says "I
-paid by USSD but it still shows pending." `paymentCodeStatus` is that payment
-code's own lifecycle, independent of `monimeStatus` (the checkout session's) —
-either reaching `completed` is what `.../sync` treats as paid.
+a Seller who didn't post those products).
 
 Suggested UI: a table with a status filter (Pending / Confirmed / Paid tabs, applied
 against the caller's own row for a Seller) and a payment-method column/filter. For a
 multi-vendor order, render one action row per seller in `sellerPayments` — a Seller
 naturally only ever sees their own. Row actions: **Confirm** (only enabled while
 `pending`), **Mark Paid** (enabled once `pending` or `confirmed`), and — only for
-`monimeOnline` orders where neither `monimeStatus` nor `paymentCodeStatus` is
-`completed` yet — a **Sync with Monime** action that calls `.../sync` to pull the
-latest status from both the checkout session and the payment code instead of
-waiting on a webhook (Monime's checkout-session webhook isn't stable yet — see
+`monimeOnline` orders where `monimeStatus` isn't `completed` yet — a **Sync with
+Monime** action that calls `.../sync` to pull the latest status instead of waiting
+on a webhook (Monime's checkout-session webhook isn't stable yet — see
 `MONIME-INTEGRATION-README.md` §7); since Monime collects one lump sum for the
-whole cart, a successful sync marks every seller's row on that order paid together,
-not just the caller's. `.../sync` can return `400`/`502` if Monime itself rejects
-the lookup or can't be reached.
+whole cart via the hosted redirect, a successful sync marks every seller's row on
+that order paid together, not just the caller's. `.../sync` can return `400`/`502`
+if Monime itself rejects the lookup or can't be reached.
 
 ### Raw Monime session detail — `/checkout/reconciliation/sessions` (Admin only)
 
@@ -220,7 +212,6 @@ spans every order on the platform, so it isn't exposed to Sellers.
   "status": "pending | completed | cancelled | expired",
   "redirectUrl": "string?", "cancelUrl": "string?", "successUrl": "string?",
   "expireTime": "date?", "idempotencyKey": "string", "rawResponseJson": "string (raw Monime payload)",
-  "paymentCodeId": "string?", "ussdCode": "string?", "paymentCodeStatus": "string?", "paymentCodeExpireTime": "date?",
   "createdAt": "date", "lastSyncedAt": "date?",
   "auditLogs": [
     {
@@ -231,7 +222,7 @@ spans every order on the platform, so it isn't exposed to Sellers.
   ]
 }
 ```
-`auditLogs` includes the checkout-session create attempt, the (separate) payment-code create attempt, and every later `.../sync` call against this session — read top-to-bottom (newest first) for a timeline of what Monime returned each time. `paymentCodeId`/`ussdCode`/`paymentCodeStatus` are null only if the payment-code create call failed (non-fatal — the redirect flow still worked); check `auditLogs` for that failed attempt's `errorMessage`.
+`auditLogs` includes the original create attempt and every later `.../sync` call against this session — read top-to-bottom (newest first) for a timeline of what Monime returned each time.
 
 ---
 

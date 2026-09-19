@@ -22,21 +22,6 @@ public class CheckoutSession : Entity
     /// <summary>The raw Monime response body, kept verbatim for support/troubleshooting.</summary>
     public string RawResponseJson { get; private set; }
 
-    /// <summary>
-    /// Monime's own payment-code id (e.g. "pmc-..."), created alongside the session so the customer
-    /// has a dial-a-USSD-code fallback to the hosted redirect page. Null if that create call failed —
-    /// non-fatal, the redirect flow still works. See MONIME-INTEGRATION-README.md §2.
-    /// </summary>
-    public string? PaymentCodeId { get; private set; }
-
-    /// <summary>The actual, per-transaction USSD dial string (e.g. "*715*18284#") a customer can dial to pay. Not static.</summary>
-    public string? UssdCode { get; private set; }
-
-    /// <summary>Monime's payment-code status — one of "pending", "processing", "completed", "expired", "cancelled".</summary>
-    public string? PaymentCodeStatus { get; private set; }
-
-    public DateTimeOffset? PaymentCodeExpireTime { get; private set; }
-
     public DateTimeOffset CreatedAt { get; private init; }
     public DateTimeOffset? LastSyncedAt { get; private set; }
 
@@ -101,15 +86,4 @@ public class CheckoutSession : Entity
         RawResponseJson = rawResponseJson;
         LastSyncedAt = DateTimeOffset.UtcNow;
     }
-
-    /// <summary>Records the payment code Monime created alongside this session. Safe to skip on failure — the redirect flow still works.</summary>
-    public void AttachPaymentCode(string paymentCodeId, string? ussdCode, string status, DateTimeOffset? expireTime)
-    {
-        PaymentCodeId = paymentCodeId;
-        UssdCode = ussdCode;
-        PaymentCodeStatus = status;
-        PaymentCodeExpireTime = expireTime;
-    }
-
-    public void UpdatePaymentCodeStatus(string status) => PaymentCodeStatus = status;
 }

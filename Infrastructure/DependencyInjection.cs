@@ -3,6 +3,7 @@ using AgrismartAPI.Application.Common;
 using AgrismartAPI.Domain.Audit;
 using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Checkout;
+using AgrismartAPI.Domain.Harvest;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
 using AgrismartAPI.Domain.Scans;
@@ -12,6 +13,7 @@ using AgrismartAPI.Infrastructure.Auth;
 using AgrismartAPI.Infrastructure.Diagnosis;
 using AgrismartAPI.Infrastructure.Diagnosis.Kindwise;
 using AgrismartAPI.Infrastructure.Email;
+using AgrismartAPI.Infrastructure.Harvest;
 using AgrismartAPI.Infrastructure.Orders;
 using AgrismartAPI.Infrastructure.Payments.Monime;
 using AgrismartAPI.Infrastructure.Persistence;
@@ -36,6 +38,7 @@ public static class DependencyInjection
         services.Configure<SendGridSettings>(configuration.GetSection(SendGridSettings.SectionName));
         services.Configure<AppLinksSettings>(configuration.GetSection(AppLinksSettings.SectionName));
         services.Configure<MonimeSettings>(configuration.GetSection(MonimeSettings.SectionName));
+        services.Configure<OpenMeteoOptions>(configuration.GetSection(OpenMeteoOptions.SectionName));
 
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
@@ -52,6 +55,8 @@ public static class DependencyInjection
         services.AddScoped<IAuditLogRepository, AuditLogRepository>();
         services.AddScoped<ICheckoutSessionRepository, CheckoutSessionRepository>();
         services.AddScoped<ICheckoutAuditLogRepository, CheckoutAuditLogRepository>();
+        services.AddScoped<ICropRepository, CropRepository>();
+        services.AddScoped<IHarvestPredictionRepository, HarvestPredictionRepository>();
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
@@ -81,6 +86,27 @@ public static class DependencyInjection
 
         services.AddHttpClient<IMonimeCheckoutClient, MonimeCheckoutClient>();
         services.AddHostedService<OrderHoldExpiryService>();
+
+        // Deterministic synthetic climate when no outbound network should be assumed (local dev,
+        // CI); real Open-Meteo archive/forecast data otherwise. See Infrastructure/Harvest.
+        var offlineWeather =
+            configuration.GetValue<bool>($"{OpenMeteoOptions.SectionName}:UseSyntheticProvider") ||
+            string.Equals(Environment.GetEnvironmentVariable("AGRISMART_OFFLINE"), "true", StringComparison.OrdinalIgnoreCase);
+
+        if (offlineWeather)
+        {
+            services.AddSingleton<IWeatherProvider, SyntheticWeatherProvider>();
+        }
+        else
+        {
+            services.AddHttpClient<IWeatherProvider, OpenMeteoWeatherProvider>(client =>
+            {
+                client.Timeout = TimeSpan.FromSeconds(20);
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("AgrismartAPI-Harvest/1.0");
+            });
+        }
+
+        services.AddScoped<IHarvestPredictor, GddHarvestPredictor>();
 
         return services;
     }

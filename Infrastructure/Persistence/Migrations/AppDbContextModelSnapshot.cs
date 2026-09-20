@@ -204,6 +204,91 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                     b.ToTable("CheckoutSessions", (string)null);
                 });
 
+            modelBuilder.Entity("AgrismartAPI.Domain.Harvest.CropProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("BaseTemperatureC")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("GddToMaturity")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Stages")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Stages");
+
+                    b.Property<int>("TypicalDaysToMaturity")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("UpperTemperatureC")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("Crops", (string)null);
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Harvest.HarvestPrediction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AlreadyMature")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly>("AsOf")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CropId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CropName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateOnly>("PlantingDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("HarvestPredictions", (string)null);
+                });
+
             modelBuilder.Entity("AgrismartAPI.Domain.Market.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -572,6 +657,174 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Harvest.HarvestPrediction", b =>
+                {
+                    b.OwnsOne("AgrismartAPI.Domain.Harvest.GddSummary", "Gdd", b1 =>
+                        {
+                            b1.Property<Guid>("HarvestPredictionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<double>("Accumulated")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Gdd_Accumulated");
+
+                            b1.Property<double>("BaseTemperatureC")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Gdd_BaseTemperatureC");
+
+                            b1.Property<int>("DaysForecast")
+                                .HasColumnType("integer")
+                                .HasColumnName("Gdd_DaysForecast");
+
+                            b1.Property<int>("DaysObserved")
+                                .HasColumnType("integer")
+                                .HasColumnName("Gdd_DaysObserved");
+
+                            b1.Property<double>("PercentComplete")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Gdd_PercentComplete");
+
+                            b1.Property<double>("Remaining")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Gdd_Remaining");
+
+                            b1.Property<double>("Required")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Gdd_Required");
+
+                            b1.Property<double>("UpperTemperatureC")
+                                .HasColumnType("double precision")
+                                .HasColumnName("Gdd_UpperTemperatureC");
+
+                            b1.HasKey("HarvestPredictionId");
+
+                            b1.ToTable("HarvestPredictions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("HarvestPredictionId");
+                        });
+
+                    b.OwnsOne("AgrismartAPI.Domain.Harvest.GrowthStageInfo", "Stage", b1 =>
+                        {
+                            b1.Property<Guid>("HarvestPredictionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("Current")
+                                .IsRequired()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("Stage_Current");
+
+                            b1.Property<string>("Next")
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasColumnName("Stage_Next");
+
+                            b1.Property<DateOnly?>("NextStageStarts")
+                                .HasColumnType("date")
+                                .HasColumnName("Stage_NextStageStarts");
+
+                            b1.HasKey("HarvestPredictionId");
+
+                            b1.ToTable("HarvestPredictions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("HarvestPredictionId");
+                        });
+
+                    b.OwnsOne("AgrismartAPI.Domain.Harvest.HarvestWindow", "Harvest", b1 =>
+                        {
+                            b1.Property<Guid>("HarvestPredictionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<string>("Basis")
+                                .IsRequired()
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("Harvest_Basis");
+
+                            b1.Property<string>("Confidence")
+                                .IsRequired()
+                                .HasMaxLength(20)
+                                .HasColumnType("character varying(20)")
+                                .HasColumnName("Harvest_Confidence");
+
+                            b1.Property<int>("DaysFromNow")
+                                .HasColumnType("integer")
+                                .HasColumnName("Harvest_DaysFromNow");
+
+                            b1.Property<DateOnly>("Earliest")
+                                .HasColumnType("date")
+                                .HasColumnName("Harvest_Earliest");
+
+                            b1.Property<DateOnly>("Expected")
+                                .HasColumnType("date")
+                                .HasColumnName("Harvest_Expected");
+
+                            b1.Property<DateOnly>("Latest")
+                                .HasColumnType("date")
+                                .HasColumnName("Harvest_Latest");
+
+                            b1.Property<int>("WindowWidthDays")
+                                .HasColumnType("integer")
+                                .HasColumnName("Harvest_WindowWidthDays");
+
+                            b1.HasKey("HarvestPredictionId");
+
+                            b1.ToTable("HarvestPredictions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("HarvestPredictionId");
+                        });
+
+                    b.OwnsOne("AgrismartAPI.Domain.Harvest.MethodologyInfo", "Methodology", b1 =>
+                        {
+                            b1.Property<Guid>("HarvestPredictionId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int>("AnalogYears")
+                                .HasColumnType("integer")
+                                .HasColumnName("Methodology_AnalogYears");
+
+                            b1.Property<string>("Model")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("Methodology_Model");
+
+                            b1.Property<string>("Notes")
+                                .IsRequired()
+                                .HasMaxLength(500)
+                                .HasColumnType("character varying(500)")
+                                .HasColumnName("Methodology_Notes");
+
+                            b1.Property<string>("WeatherSource")
+                                .IsRequired()
+                                .HasMaxLength(200)
+                                .HasColumnType("character varying(200)")
+                                .HasColumnName("Methodology_WeatherSource");
+
+                            b1.HasKey("HarvestPredictionId");
+
+                            b1.ToTable("HarvestPredictions");
+
+                            b1.WithOwner()
+                                .HasForeignKey("HarvestPredictionId");
+                        });
+
+                    b.Navigation("Gdd")
+                        .IsRequired();
+
+                    b.Navigation("Harvest")
+                        .IsRequired();
+
+                    b.Navigation("Methodology")
+                        .IsRequired();
+
+                    b.Navigation("Stage")
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("AgrismartAPI.Domain.Market.MarketProduct", b =>

@@ -395,6 +395,241 @@ to the caller's scan history. Returns a `PlantScanDto`:
 ### GET /scans
 The caller's own scan history — returns `PlantScanDto[]`.
 
+## Crops & Harvest Prediction — `/crops`, `/harvest`
+
+"When should I harvest this?" — the customer picks a crop, gives the field's location and planting
+date, and the backend returns an expected harvest date window plus a growth-stage readout, backed by
+real historical + forecast weather (no API key needed on the app side; the backend talks to
+[Open-Meteo](https://open-meteo.com) itself).
+
+**These endpoints are public — no login required** — so you can build the whole predictor screen
+before auth is wired up, and it works for a browsing/not-yet-registered user. The one difference
+logging in makes: **if you send `Authorization: Bearer <token>` on a predict call, that prediction is
+saved to the caller's history** (`GET /harvest/history`); without a token, the prediction still comes
+back normally, it just isn't saved anywhere. So: always attach the token when the user is logged in,
+even though the endpoint doesn't require it.
+
+### How the prediction works (useful for writing good copy/UI, not required reading to integrate)
+
+The backend splits the season into three parts and is upfront about which one it's using for any
+given answer (see `methodology.notes` and `harvest.basis`):
+1. **Planting date → yesterday** — actual observed weather (reanalysis).
+2. **Today → +16 days** — a real numerical weather forecast.
+3. **Beyond that** — no forecast exists that far out, so it replays the last 10 years' *actual*
+   weather at that location starting from the same calendar day, giving 10 plausible harvest dates.
+   The 10th/50th/90th percentiles of those become `harvest.earliest` / `harvest.expected` /
+   `harvest.latest` — i.e. the window width is a real statement about how variable that location's
+   climate is, not an arbitrary error bar. `harvest.confidence` (`"High"`/`"Medium"`/`"Low"`) is just
+   that window's width bucketed — safe to render as a badge/color directly.
+
+If the crop's thermal requirement is already met by observed weather or is met within the 16-day
+forecast, steps 3 doesn't run at all, you get a single exact date back (`windowWidthDays: 0`,
+`confidence: "High"`), and `alreadyMature: true` if that date is today or earlier.
+
+### 1. Crop catalog — `GET /crops`, `GET /crops/{cropId}`
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/crops` | Public | All crops the predictor supports |
+| GET | `/crops/{cropId}` | Public | One crop; `404` if `cropId` isn't recognized |
+
+Populate a crop picker from `GET /crops` — don't hardcode the list, it can grow over time.
+`CropSummaryDto`:
+```json
+{
+  "id": "maize",
+  "name": "Maize",
+  "baseTemperatureC": 10.0,
+  "upperTemperatureC": 30.0,
+  "gddToMaturity": 1500.0,
+  "typicalDaysToMaturity": 110,
+  "stages": [
+    { "name": "Emergence", "startFraction": 0.0 },
+    { "name": "Vegetative", "startFraction": 0.10 },
+    { "name": "Flowering", "startFraction": 0.45 },
+    { "name": "Grain filling", "startFraction": 0.65 },
+    { "name": "Physiological maturity", "startFraction": 0.90 }
+  ]
+}
+```
+`id` is the lowercase key you pass back as `cropId` when predicting (e.g. `"maize"`,
+`"rice-lowland"`, `"cassava"`) — treat it as an opaque string, not something to construct client-side.
+`stages` is mainly useful for drawing a growth-stage progress bar (see `stage` below) —
+`typicalDaysToMaturity` is a rough calendar-day sanity check, not what drives the actual prediction
+(that's `gddToMaturity`, in growing-degree-days).
+
+### 2. Run a prediction — `POST /harvest/predict`
+
+Body:
+```json
+{
+  "cropId": "maize",
+  "latitude": 8.48,
+  "longitude": -13.23,
+  "plantingDate": "2026-06-01",
+  "includeDailyTrace": false,
+  "gddToMaturityOverride": null
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `cropId` | Yes | From `GET /crops` |
+| `latitude` | Yes | `-90..90` |
+| `longitude` | Yes | `-180..180` |
+| `plantingDate` | Yes | `yyyy-MM-dd`. Must be within **3 years in the past** to **1 year in the future** — reject obviously-wrong dates client-side before calling, since the backend does too (as a `400`) |
+| `includeDailyTrace` | No (default `false`) | See [Daily trace](#daily-trace--includedailytrace-true) below — leave `false` unless you're drawing a chart, the array can be 100+ points |
+| `gddToMaturityOverride` | No | Only for a farmer who has their own calibrated GDD-to-maturity figure for a specific variety; when set, must be `1..20000`. Leave this out/`null` for the normal case — the crop's own `gddToMaturity` from the catalog is used |
+
+Use the device's actual GPS coordinates (e.g. `geolocator`) for `latitude`/`longitude` when
+predicting for "my current field" — or let the user pick a point on a map for a field that isn't
+where they're standing right now. This is a real weather lookup, not a regional approximation, so
+precision matters here more than it does for the Diagnosis endpoints' location hint.
+
+There's also a **GET version** with the same fields as query parameters, handy for a quick manual
+check from a browser address bar or a `curl` one-liner — prefer the POST above from the app itself:
+
+`GET /harvest/predict?crop=maize&lat=8.48&lon=-13.23&planted=2026-06-01&trace=false&gddOverride=`
+
+Response `200` — `HarvestPredictionResponseDto`:
+```json
+{
+  "id": "fcdd9505-d77e-40e9-83be-cc802a4955b5",
+  "cropId": "maize",
+  "cropName": "Maize",
+  "location": { "latitude": 8.48, "longitude": -13.23 },
+  "plantingDate": "2026-07-01",
+  "asOf": "2026-09-20",
+  "alreadyMature": false,
+  "gdd": {
+    "accumulated": 1098.8,
+    "required": 1500.0,
+    "remaining": 401.2,
+    "percentComplete": 73.2,
+    "baseTemperatureC": 10.0,
+    "upperTemperatureC": 30.0,
+    "daysObserved": 82,
+    "daysForecast": 16
+  },
+  "stage": {
+    "current": "Grain filling",
+    "next": "Physiological maturity",
+    "nextStageStarts": "2026-10-09"
+  },
+  "harvest": {
+    "earliest": "2026-10-18",
+    "expected": "2026-10-19",
+    "latest": "2026-10-19",
+    "daysFromNow": 29,
+    "windowWidthDays": 1,
+    "confidence": "High",
+    "basis": "P10/P50/P90 of 10 analog years replayed from 2026-10-07."
+  },
+  "methodology": {
+    "model": "Modified growing-degree-day (Method B) with analog-year ensemble",
+    "weatherSource": "Open-Meteo archive + forecast (no API key)",
+    "analogYears": 10,
+    "notes": "All analog years had complete weather coverage."
+  },
+  "dailyTrace": null,
+  "createdAt": "2026-09-20T14:14:50.63Z"
+}
+```
+
+Field-by-field, grouped by what they're for:
+
+- **Header** — `id` (this saved prediction's id — only meaningful/reusable if the call was
+  authenticated; store it if you want a "view again" link into history), `cropId`/`cropName`,
+  `location`, `plantingDate`, `asOf` (the date the backend computed this as of — always "today" in
+  practice, but pin your countdown math to this rather than the device clock in case they differ),
+  `alreadyMature`, `createdAt`.
+- **`gdd`** — the thermal-time accounting. `percentComplete` (`0..100`) is the number to drive a
+  progress bar with. `accumulated`/`required`/`remaining` are the same thing in growing-degree-day
+  units if you want the raw numbers too; most UIs only need `percentComplete`.
+- **`stage`** — `current` is one of the crop's `stages[].name` from the catalog (or `"Pre-planting"`
+  if the planting date is in the future). `next`/`nextStageStarts` are `null` once the crop has
+  reached its final stage — handle that as "no further stage" rather than a missing-data bug.
+- **`harvest`** — the headline answer. Always show `expected` as the primary date, and
+  `earliest`–`latest` as a range underneath (e.g. "Expected Oct 19 (Oct 18 – Oct 19)"). Use
+  `confidence` to pick a badge color (`"High"` green, `"Medium"` amber, `"Low"` red/gray) and surface
+  `basis` as secondary/expandable text — it's a genuinely useful one-line explanation of *why* the app
+  is saying what it's saying (e.g. "already met by observed weather" vs. "P10/P50/P90 of 10 analog
+  years..."), good for a "why?" info icon rather than always-visible body text.
+- **`methodology`** — mostly for an "About this prediction" / methodology disclosure screen, not the
+  main UI. Worth surfacing `notes` when it's non-empty and mentions extrapolation (see next section) —
+  it's the backend being honest that part of the answer is less certain than usual.
+
+#### Daily trace (`includeDailyTrace: true`)
+
+Only ask for this when you're actually drawing a GDD-accumulation chart (e.g. a line graph from
+planting date to harvest) — it's an array of one point per day and can easily be 100–300+ entries.
+Each point:
+```json
+{ "date": "2026-07-01", "maxC": 30.3, "minC": 18.4, "gdd": 14.2, "cumulative": 14.2, "source": "Observed" }
+```
+Plot `cumulative` against `date` for the accumulation curve; `gdd` is that single day's contribution
+if you want a bar-chart view instead. **`source` is one of `"Observed"`, `"Forecast"`, or
+`"Climatology"` — note the capital first letter.** Every other enum-like string in this API
+(`role`, `status`, `paymentMethod`, `severity`, etc.) comes back lowercase/camelCase; this one field
+is the one exception, because it's serialized as a plain string rather than through the same enum
+pipeline. Match on it exactly as `"Observed"`/`"Forecast"`/`"Climatology"` — a case-insensitive
+compare is the safe way to future-proof this if it's ever normalized. It's genuinely useful for
+styling the chart though: solid line for `"Observed"`/`"Forecast"` (real weather), dashed/lighter for
+`"Climatology"` (the projected tail, replayed from historical years) — that visually communicates
+"this part is more certain than that part" for free.
+
+When `includeDailyTrace` is omitted or `false`, `dailyTrace` comes back `null` — always null-check
+before mapping over it.
+
+### 3. Prediction history — `GET /harvest/history`
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/harvest/history` | Buyer | The caller's own saved predictions, newest first |
+
+Same `HarvestPredictionResponseDto` shape as above, returned as an array — but **`dailyTrace` is
+always `null`** here (the day-by-day trace isn't persisted, only the summary/result). If you need the
+trace again for a past prediction, re-run `POST /harvest/predict` with the same inputs and
+`includeDailyTrace: true`; note this computes a fresh prediction (today's weather may have moved on
+since the original call) rather than replaying the exact saved one.
+
+Only predictions made **while logged in** show up here — see the auth note at the top of this
+section. A good pattern: on the predictor result screen, if the user isn't logged in, show a
+"log in to save this prediction to your history" prompt rather than silently dropping it.
+
+### Error responses
+
+| Status | When | Example `message` |
+|---|---|---|
+| `400` | A validation rule was violated (see the field table above) | `"latitude must be between -90 and 90."`, `"plantingDate cannot be more than 3 years in the past."` |
+| `404` | `cropId` isn't in the catalog | `"Unknown crop 'unicorn-fruit'. Call GET /crops for the list."` |
+| `502` | The upstream weather service failed or returned unusable data for that location — genuinely rare, but possible for very remote coordinates or a transient outage | Surface as "couldn't fetch weather for that location — try again" rather than a generic error, since it's often transient |
+| `401` | `GET /harvest/history` called without a token (predict endpoints don't require one, so this shouldn't happen there) | |
+
+All follow the same `{ "message": "..." }` shape as the rest of the API (see
+[Error format](#error-format) below).
+
+### Worked example (curl)
+
+```bash
+# 1. Browse the catalog to populate a crop picker
+curl http://localhost:5150/crops
+
+# 2. Predict — no login needed
+curl -X POST http://localhost:5150/harvest/predict \
+  -H "Content-Type: application/json" \
+  -d '{ "cropId": "maize", "latitude": 8.48, "longitude": -13.23, "plantingDate": "2026-06-01" }'
+
+# 3. Same, but logged in — this one is saved to history
+curl -X POST http://localhost:5150/harvest/predict \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "cropId": "maize", "latitude": 8.48, "longitude": -13.23, "plantingDate": "2026-06-01" }'
+
+# 4. Check it's there
+curl http://localhost:5150/harvest/history -H "Authorization: Bearer $TOKEN"
+```
+
 ---
 
 ## Error format

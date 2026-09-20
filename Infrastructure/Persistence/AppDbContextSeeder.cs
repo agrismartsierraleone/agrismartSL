@@ -1,4 +1,5 @@
 using AgrismartAPI.Application.Abstractions;
+using AgrismartAPI.Domain.Harvest;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Tutorials;
 using AgrismartAPI.Domain.Users;
@@ -89,6 +90,50 @@ public static class AppDbContextSeeder
                     "12:34",
                     5600,
                     DateTimeOffset.Parse("2026-04-20T00:00:00Z")));
+        }
+
+        if (!await dbContext.Crops.AnyAsync(cancellationToken))
+        {
+            // Textbook mid-range thermal-time values, good enough to demonstrate the model and give a
+            // sane first answer. They are NOT calibrated for any specific variety or agro-ecological
+            // zone — replace with values fitted to local trial data before this drives a real decision.
+            IReadOnlyList<GrowthStage> cerealStages =
+            [
+                new("Emergence", 0.00), new("Vegetative", 0.10), new("Flowering", 0.45),
+                new("Grain filling", 0.65), new("Physiological maturity", 0.90)
+            ];
+            IReadOnlyList<GrowthStage> legumeStages =
+            [
+                new("Emergence", 0.00), new("Vegetative", 0.12), new("Flowering", 0.40),
+                new("Pod fill", 0.62), new("Maturity", 0.88)
+            ];
+            IReadOnlyList<GrowthStage> rootStages =
+            [
+                new("Sprouting", 0.00), new("Canopy establishment", 0.12), new("Root initiation", 0.35),
+                new("Root bulking", 0.55), new("Maturity", 0.90)
+            ];
+            IReadOnlyList<GrowthStage> fruitStages =
+            [
+                new("Emergence", 0.00), new("Vegetative", 0.10), new("Flowering", 0.40),
+                new("Fruit set", 0.58), new("Ripening", 0.80)
+            ];
+
+            dbContext.Crops.AddRange(
+                //                      key            name             Tbase Tupper  GDD    days  stages
+                CropProfile.Create("maize",        "Maize",          10.0, 30.0, 1500, 110, cerealStages),
+                CropProfile.Create("rice-lowland", "Rice (lowland)", 10.0, 30.0, 2100, 125, cerealStages),
+                CropProfile.Create("rice-upland",  "Rice (upland)",  10.0, 30.0, 1850, 110, cerealStages),
+                CropProfile.Create("sorghum",      "Sorghum",        10.0, 30.0, 1700, 120, cerealStages),
+                CropProfile.Create("millet-pearl", "Pearl millet",   10.0, 34.0, 1400,  90, cerealStages),
+                CropProfile.Create("wheat",        "Wheat",           0.0, 25.0, 2000, 140, cerealStages),
+                CropProfile.Create("groundnut",    "Groundnut",      10.0, 32.0, 1600, 120, legumeStages),
+                CropProfile.Create("cowpea",       "Cowpea",         11.0, 32.0, 1300,  75, legumeStages),
+                CropProfile.Create("soybean",      "Soybean",        10.0, 30.0, 1500, 110, legumeStages),
+                CropProfile.Create("cassava",      "Cassava",        13.0, 32.0, 4500, 300, rootStages),
+                CropProfile.Create("sweet-potato", "Sweet potato",   15.0, 32.0, 1800, 120, rootStages),
+                CropProfile.Create("potato",       "Potato",          7.0, 30.0, 1500, 110, rootStages),
+                CropProfile.Create("tomato",       "Tomato",         10.0, 30.0, 1400,  95, fruitStages),
+                CropProfile.Create("pepper-chili", "Chili pepper",   12.0, 32.0, 1600, 105, fruitStages));
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

@@ -1,0 +1,190 @@
+### Fertilizer recommendation and calculator — sample requests
+### Run from Rider / VS / VS Code (REST Client). Get tokens from POST /auth/login first.
+
+@host = http://localhost:5150
+@farmerToken = paste-a-buyer-jwt-here
+@adminToken = paste-an-admin-jwt-here
+@recommendationId = 00000000-0000-0000-0000-000000000000
+
+### ---------- Reference data (anonymous) ----------
+
+### All crops with nutrient data and schedules
+GET {{host}}/fertilizer/crops
+Accept: application/json
+
+### One crop
+GET {{host}}/fertilizer/crops/maize
+Accept: application/json
+
+### All fertilizer products
+GET {{host}}/fertilizer/products
+Accept: application/json
+
+### One product
+GET {{host}}/fertilizer/products/npk-15-15-15
+Accept: application/json
+
+### ---------- Calculate (anonymous, not saved) ----------
+
+### Simple soil mode, farmer's own products and prices
+POST {{host}}/fertilizer/calculate
+Content-Type: application/json
+
+{
+  "cropId": "maize",
+  "area": 0.5,
+  "areaUnit": "hectare",
+  "soil": { "mode": "simple", "fertility": "medium", "soilType": "loamy", "ph": 5.2 },
+  "targetYieldTPerHa": 4.0,
+  "fertilizerProductIds": ["npk-15-15-15", "urea"],
+  "customPrices": [
+    { "productId": "npk-15-15-15", "pricePerBag": 950 },
+    { "productId": "urea", "pricePerBag": 900 }
+  ]
+}
+
+### Soil-test mode, acres, API chooses the products
+POST {{host}}/fertilizer/calculate
+Content-Type: application/json
+
+{
+  "cropId": "cassava",
+  "area": 2,
+  "areaUnit": "acre",
+  "soil": {
+    "mode": "soilTest",
+    "nitrogenTotalPercent": 0.08,
+    "phosphorusBray1MgPerKg": 14,
+    "potassiumCmolPerKg": 0.15,
+    "ph": 5.1
+  }
+}
+
+### Plot dimensions (20 m × 15 m), lowland rice
+POST {{host}}/fertilizer/calculate
+Content-Type: application/json
+
+{
+  "cropId": "rice-lowland",
+  "areaUnit": "plotDimensions",
+  "lengthM": 20,
+  "widthM": 15,
+  "soil": { "fertility": "low" }
+}
+
+### Validation error example → 400 with field-level "errors"
+POST {{host}}/fertilizer/calculate
+Content-Type: application/json
+
+{
+  "cropId": "banana",
+  "area": 0,
+  "soil": { "mode": "soilTest", "nitrogenTotalPercent": 0.1, "phosphorusBray1MgPerKg": -2, "potassiumCmolPerKg": 0.3 }
+}
+
+### ---------- Saved recommendations (signed in) ----------
+
+### Calculate and save
+POST {{host}}/fertilizer/recommendations
+Authorization: Bearer {{farmerToken}}
+Content-Type: application/json
+
+{
+  "cropId": "maize",
+  "area": 1,
+  "areaUnit": "acre",
+  "soil": { "fertility": "low", "soilType": "sandy" },
+  "plotLabel": "Back field by the stream"
+}
+
+### My history (filters are optional)
+GET {{host}}/fertilizer/recommendations?cropId=maize&plotLabel=Back%20field%20by%20the%20stream&page=1&pageSize=20
+Authorization: Bearer {{farmerToken}}
+
+### One saved recommendation
+GET {{host}}/fertilizer/recommendations/{{recommendationId}}
+Authorization: Bearer {{farmerToken}}
+
+### Delete it
+DELETE {{host}}/fertilizer/recommendations/{{recommendationId}}
+Authorization: Bearer {{farmerToken}}
+
+### Admin: all farmers' history, or one farmer's
+GET {{host}}/fertilizer/recommendations?userId=00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{adminToken}}
+
+### ---------- Reference data maintenance (admin) ----------
+
+### Set a product price (PUT replaces all fields — send the full product)
+PUT {{host}}/fertilizer/products/urea
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Urea (46-0-0)",
+  "type": "straight",
+  "nitrogenPercent": 46,
+  "phosphatePercent": 0,
+  "potashPercent": 0,
+  "bagSizeKg": 50,
+  "pricePerBag": 900,
+  "notes": "Most concentrated N source. Cover with soil after applying."
+}
+
+### Add a product
+POST {{host}}/fertilizer/products
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "id": "npk-17-17-17",
+  "name": "NPK 17-17-17",
+  "type": "compound",
+  "nitrogenPercent": 17,
+  "phosphatePercent": 17,
+  "potashPercent": 17,
+  "bagSizeKg": 50,
+  "pricePerBag": 1000
+}
+
+### Update a crop's nutrient data (schedule percentages per nutrient must total 100)
+PUT {{host}}/fertilizer/crops/maize
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Maize",
+  "localName": "Kon",
+  "nitrogenKgPerHa": 90,
+  "phosphateKgPerHa": 45,
+  "potashKgPerHa": 45,
+  "referenceYieldTPerHa": 3.5,
+  "maxRealisticYieldTPerHa": 7.0,
+  "yieldBasis": "dry grain",
+  "plantsPerHectare": 53333,
+  "isPerennial": false,
+  "schedule": [
+    { "stage": "Basal (at planting)", "daysAfterPlanting": 0, "timing": "At planting", "nitrogenPercent": 40, "phosphatePercent": 100, "potashPercent": 100 },
+    { "stage": "Top-dressing", "daysAfterPlanting": 35, "timing": "4-6 weeks after planting", "nitrogenPercent": 60, "phosphatePercent": 0, "potashPercent": 0 }
+  ]
+}
+
+### Add a crop
+POST {{host}}/fertilizer/crops
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "id": "cowpea",
+  "name": "Cowpea",
+  "nitrogenKgPerHa": 20,
+  "phosphateKgPerHa": 40,
+  "potashKgPerHa": 20,
+  "referenceYieldTPerHa": 1.0,
+  "maxRealisticYieldTPerHa": 2.5,
+  "yieldBasis": "dry grain",
+  "isPerennial": false,
+  "schedule": [
+    { "stage": "Basal (at planting)", "daysAfterPlanting": 0, "timing": "At planting", "nitrogenPercent": 100, "phosphatePercent": 100, "potashPercent": 100 }
+  ]
+}

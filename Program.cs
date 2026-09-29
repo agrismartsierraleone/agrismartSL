@@ -62,6 +62,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+    options.AddOperationTransformer<FertilizerExamplesTransformer>();
 });
 
 var app = builder.Build();
@@ -84,7 +85,12 @@ using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
-    await dbContext.Database.MigrateAsync();
+    // Integration tests swap in the EF InMemory provider, which has no migrations.
+    if (dbContext.Database.IsRelational())
+    {
+        await dbContext.Database.MigrateAsync();
+    }
+
     await AppDbContextSeeder.SeedAsync(dbContext, passwordHasher);
 }
 
@@ -117,3 +123,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
+
+/// <summary>Exposed so integration tests can host the API with WebApplicationFactory&lt;Program&gt;.</summary>
+public partial class Program;

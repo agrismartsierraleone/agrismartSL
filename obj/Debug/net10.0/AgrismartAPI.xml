@@ -1,0 +1,1749 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AgrismartAPI</name>
+    </assembly>
+    <members>
+        <member name="T:AgrismartAPI.Application.Abstractions.IBiometricChallengeStore">
+            <summary>Short-lived, single-use nonces handed out by <c>POST /auth/biometric/challenge</c>.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IBiometricChallengeStore.Issue(System.Guid,System.String)">
+            <summary>Issues a fresh challenge for the (user, device) pair and returns it base64-encoded.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IBiometricChallengeStore.TryConsume(System.Guid,System.String,System.Byte[]@)">
+            <summary>Consumes the pending challenge for the (user, device) pair, if any. Single use.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IBiometricSignatureVerifier.Verify(System.String,System.Byte[],System.String)">
+            <summary>
+            Verifies that <paramref name="signatureBase64"/> is a valid signature over <paramref name="challenge"/>
+            produced by the private key matching <paramref name="publicKeyBase64"/>.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.IDiagnosisEngine">
+            <summary>Pluggable image-analysis backend. Swap the registered implementation to move from a mock to a real model.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IDiagnosisEngine.DiagnoseAsync(System.IO.Stream,System.String,System.Nullable{System.Double},System.Nullable{System.Double},System.Threading.CancellationToken)">
+            <summary>
+            <paramref name="latitude"/>/<paramref name="longitude"/> are optional (both must be supplied
+            together or omitted together) and let region-aware backends like Kindwise crop.health weight
+            suggestions by which crops/pests are actually plausible at that location.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.IFertilizerCalculatorService">
+            <summary>
+            Pure fertilizer arithmetic: no database or network access, so it can be unit-tested directly.
+            Throws <see cref="T:AgrismartAPI.Application.Common.ValidationException"/> (with field-level errors) for invalid input.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IFertilizerCalculatorService.Calculate(AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest,AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Domain.Fertilizer.FertilizerProduct})">
+            <param name="request">The farmer's inputs.</param>
+            <param name="crop">The crop named by <c>request.CropId</c>.</param>
+            <param name="catalogue">All known fertilizer products; the farmer's selection and automatic plans draw from these.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IFileStorageService.SaveAsync(AgrismartAPI.Application.Common.UploadedFile,System.String,System.Threading.CancellationToken)">
+            <summary>Saves the file under the given subfolder and returns a root-relative URL (e.g. "/uploads/products/{name}").</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IFileStorageService.DeleteIfLocal(System.String)">
+            <summary>Deletes a previously saved file. Safe to call with an external URL or null — those are ignored.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.IHarvestPredictor">
+            <summary>
+            Growing-degree-day harvest predictor with an analog-year ensemble for the part of the
+            season that has not happened yet.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.MonimeSessionInfo">
+            <summary>Thin projection of a Monime checkout session — just what this API needs.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.MonimeSessionInfo.#ctor(System.String,System.String,System.String,System.String,System.String,System.Nullable{System.DateTimeOffset})">
+            <summary>Thin projection of a Monime checkout session — just what this API needs.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.MonimeSessionCallResult">
+            <summary>The successful, unwrapped result of a Monime checkout-session call, plus the raw wire text for auditing.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.MonimeSessionCallResult.#ctor(AgrismartAPI.Application.Abstractions.MonimeSessionInfo,System.String,System.String,System.Int32)">
+            <summary>The successful, unwrapped result of a Monime checkout-session call, plus the raw wire text for auditing.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.IMonimeCheckoutClient">
+            <summary>
+            Pluggable gateway to Monime's hosted checkout-session API
+            (https://docs.monime.io/apis/versions/caph-2025-08-23). Throws <see cref="T:AgrismartAPI.Application.Common.MonimeApiException"/>
+            on any failure (Monime-rejected or network) — callers are responsible for persistence/auditing.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IMonimeCheckoutClient.GetSessionAsync(System.String,System.Threading.CancellationToken)">
+            <summary>Fetches the current status of a previously created session — used for reconciliation.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.IWeatherProvider">
+            <summary>Pluggable daily-temperature source for harvest prediction. Swap the registered
+            implementation to move from synthetic (offline) data to a real weather API.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IWeatherProvider.GetArchiveAsync(System.Double,System.Double,System.DateOnly,System.DateOnly,System.Threading.CancellationToken)">
+            <summary>Daily observed temperatures from the reanalysis archive.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IWeatherProvider.GetRecentAndForecastAsync(System.Double,System.Double,System.Int32,System.Int32,System.Threading.CancellationToken)">
+            <summary>Recent past (filling the archive's few-day lag) plus the NWP forecast.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Audit.AuditLogAppService">
+            <summary>Records and reads the admin-only activity trail (account creation, credential changes, role changes, etc).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Audit.AuditLogAppService.#ctor(AgrismartAPI.Domain.Audit.IAuditLogRepository)">
+            <summary>Records and reads the admin-only activity trail (account creation, credential changes, role changes, etc).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.AuthAppService.ChangePasswordAsync(System.Guid,AgrismartAPI.Application.Auth.ChangePasswordRequest,System.Threading.CancellationToken)">
+            <summary>Self-service password change. Also how a user completes the forced reset of an admin-issued temporary password on first login.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.AuthAppService.RegisterBiometricAsync(System.Guid,AgrismartAPI.Application.Auth.BiometricRegisterRequest,System.Threading.CancellationToken)">
+            <summary>Registers, or replaces, the calling device's biometric public key for the authenticated user.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.AuthAppService.UnregisterBiometricAsync(System.Guid,System.String,System.Threading.CancellationToken)">
+            <summary>Turns off biometric login for the calling device.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.AuthAppService.RequestBiometricChallengeAsync(AgrismartAPI.Application.Auth.BiometricChallengeRequest,System.Threading.CancellationToken)">
+            <summary>Issues a one-time challenge for a device that already registered a biometric key.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.AuthAppService.LoginWithBiometricAsync(AgrismartAPI.Application.Auth.BiometricLoginRequest,System.Threading.CancellationToken)">
+            <summary>Completes biometric login: verifies the signed challenge and issues a normal JWT.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Auth.UserDto">
+            <summary>When <paramref name="MustChangePassword"/> is true, the frontend should route straight to a "set a new password" screen after login.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.UserDto.#ctor(System.Guid,System.String,System.String,AgrismartAPI.Domain.Users.UserRole,System.Boolean)">
+            <summary>When <paramref name="MustChangePassword"/> is true, the frontend should route straight to a "set a new password" screen after login.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Auth.ChangePasswordRequest">
+            <summary>Self-service password change — used both for a voluntary change and for the forced first-login reset of an admin-issued temporary password.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.ChangePasswordRequest.#ctor(System.String,System.String)">
+            <summary>Self-service password change — used both for a voluntary change and for the forced first-login reset of an admin-issued temporary password.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Auth.BiometricRegisterRequest">
+            <summary>Registers (or replaces) the calling device's biometric public key. Sent once, right after a normal password login, with the JWT that login returned.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.BiometricRegisterRequest.#ctor(System.String,System.String)">
+            <summary>Registers (or replaces) the calling device's biometric public key. Sent once, right after a normal password login, with the JWT that login returned.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Auth.BiometricChallengeRequest">
+            <summary>Requests a one-time challenge to sign for biometric login. No auth required — this is how a signed-out device starts the flow.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.BiometricChallengeRequest.#ctor(System.String,System.String)">
+            <summary>Requests a one-time challenge to sign for biometric login. No auth required — this is how a signed-out device starts the flow.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Auth.BiometricLoginRequest">
+            <summary>Completes biometric login by returning the challenge signed with the device's private key.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Auth.BiometricLoginRequest.#ctor(System.String,System.String,System.String)">
+            <summary>Completes biometric login by returning the challenge signed with the device's private key.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Carts.CartCheckoutRequest">
+            <summary><see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.MonimeOnline"/> is not accepted here — use <c>POST /checkout/sessions</c> for that flow.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Carts.CartCheckoutRequest.#ctor(AgrismartAPI.Domain.Orders.PaymentMethod)">
+            <summary><see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.MonimeOnline"/> is not accepted here — use <c>POST /checkout/sessions</c> for that flow.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Checkout.CheckoutAppService">
+            <summary>
+            The Monime hosted-checkout integration (path 1 of the three checkout flows — see
+            MONIME-INTEGRATION-README.md §2) plus payment reconciliation across all three flows. An Admin can
+            act on any seller's row on any order; a Seller can act only on their own row, on orders containing
+            at least one of their own products — never another seller's, even within the same multi-vendor order.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.#ctor(AgrismartAPI.Domain.Carts.ICartRepository,AgrismartAPI.Domain.Orders.IOrderRepository,AgrismartAPI.Application.Orders.OrderAppService,AgrismartAPI.Domain.Checkout.ICheckoutSessionRepository,AgrismartAPI.Domain.Checkout.ICheckoutAuditLogRepository,AgrismartAPI.Application.Abstractions.IMonimeCheckoutClient,AgrismartAPI.Domain.Users.IUserRepository,AgrismartAPI.Domain.Market.ISellerRepository,Microsoft.Extensions.Options.IOptions{AgrismartAPI.Application.Common.MonimeSettings})">
+            <summary>
+            The Monime hosted-checkout integration (path 1 of the three checkout flows — see
+            MONIME-INTEGRATION-README.md §2) plus payment reconciliation across all three flows. An Admin can
+            act on any seller's row on any order; a Seller can act only on their own row, on orders containing
+            at least one of their own products — never another seller's, even within the same multi-vendor order.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.CreateSessionAsync(System.Guid,AgrismartAPI.Application.Checkout.CreateCheckoutSessionRequest,System.Threading.CancellationToken)">
+            <summary>Creates a Monime checkout session for the caller's current cart, placing the underlying (unpaid) order first.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.GetSessionAsync(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>Lets the caller poll their own session's status (e.g. while waiting for the hosted-page redirect to complete).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.GetTransactionsAsync(System.Guid,AgrismartAPI.Domain.Users.UserRole,System.Nullable{AgrismartAPI.Domain.Orders.PaymentStatus},System.Nullable{AgrismartAPI.Domain.Orders.PaymentMethod},System.Threading.CancellationToken)">
+            <summary>
+            Reconciliation view: every order's payment state, across all three checkout paths. An Admin
+            (<paramref name="callerRole"/>) sees every seller's row on every order; a Seller sees only
+            orders containing at least one of their own products, and only their own row within them —
+            never another seller's, even in the same multi-vendor order.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.ConfirmPaymentAsync(System.Guid,AgrismartAPI.Domain.Users.UserRole,System.Guid,System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            A seller confirms payment was received for their own products in this order (e.g. cash handed
+            over at pickup) — Pending → Confirmed. Never touches another seller's portion of the same order.
+            An Admin acts the same way but must say which seller's portion via <paramref name="sellerId"/>
+            when the order spans more than one.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.MarkPaidAsync(System.Guid,AgrismartAPI.Domain.Users.UserRole,System.Guid,System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            A seller marks their own products in this order as fully paid/reconciled — final step for
+            cash-on-pickup/unpaid-hold orders. Never touches another seller's portion of the same order. An
+            Admin acts the same way but must say which seller's portion via <paramref name="sellerId"/> when
+            the order spans more than one.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.SyncMonimeSessionAsync(System.Guid,AgrismartAPI.Domain.Users.UserRole,System.Guid,System.Threading.CancellationToken)">
+            <summary>
+            Monime-only: re-fetches the session from Monime and reconciles this order against it. Monime
+            charges the customer once for the whole cart, so a completed session marks every seller's
+            portion paid at once — this isn't one seller reconciling another's products, it's an external
+            fact applying to the order as a whole. Needed because Monime's checkout_session webhook events
+            are not yet stable — see MONIME-INTEGRATION-README.md §11. Callable by an Admin or a Seller with
+            an item in this order.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.ResolveSellerScopeAsync(System.Guid,AgrismartAPI.Domain.Users.UserRole,System.Threading.CancellationToken)">
+            <summary>Null for an Admin (unrestricted); the caller's own seller id for a Seller.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.ResolveTargetSellerIdAsync(AgrismartAPI.Domain.Orders.Order,System.Guid,AgrismartAPI.Domain.Users.UserRole,System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Which seller's row a reconciliation action targets. A Seller can only ever target their own —
+            <paramref name="requestedSellerId"/> is ignored for them. An Admin must disambiguate via
+            <paramref name="requestedSellerId"/> when the order spans more than one seller. The returned id
+            is always guaranteed to have a matching <see cref="P:AgrismartAPI.Domain.Orders.Order.SellerPayments"/> row, so callers can
+            safely assume <see cref="M:AgrismartAPI.Domain.Orders.Order.GetSellerPayment(System.Guid)"/> won't return null for it.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.MatchesPaymentStatus(AgrismartAPI.Domain.Orders.Order,System.Nullable{System.Guid},AgrismartAPI.Domain.Orders.PaymentStatus)">
+            <summary>Whichever <paramref name="filter"/> is being matched against: the seller's own row when scoped, else the order-wide aggregate.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutAppService.ToOrderPaymentDto(AgrismartAPI.Domain.Orders.Order,AgrismartAPI.Domain.Users.User,AgrismartAPI.Domain.Checkout.CheckoutSession,System.Nullable{System.Guid},System.Collections.Generic.IReadOnlyDictionary{System.Guid,AgrismartAPI.Domain.Market.Seller})">
+            <summary><paramref name="viewerSellerScope"/> null (Admin) includes every seller's row; a seller id restricts the breakdown to just that seller's own row.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Checkout.CreateCheckoutSessionRequest">
+            <summary>Optional overrides for where Monime redirects the browser; falls back to configured defaults when omitted.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CreateCheckoutSessionRequest.#ctor(System.String,System.String)">
+            <summary>Optional overrides for where Monime redirects the browser; falls back to configured defaults when omitted.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Checkout.CheckoutSessionDto">
+            <summary>Thin, customer-facing view of a Monime checkout session — just enough to redirect and show status.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutSessionDto.#ctor(System.Guid,System.Guid,System.String,System.String,System.String,System.Nullable{System.DateTimeOffset},System.Decimal,System.String)">
+            <summary>Thin, customer-facing view of a Monime checkout session — just enough to redirect and show status.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Checkout.CheckoutSessionAdminDto">
+            <summary>Admin-only, full view of a checkout session including the raw Monime payload and its attempt history.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.CheckoutSessionAdminDto.#ctor(System.Guid,System.Guid,System.Guid,System.String,System.String,System.String,System.String,System.String,System.Nullable{System.DateTimeOffset},System.String,System.String,System.DateTimeOffset,System.Nullable{System.DateTimeOffset},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Checkout.CheckoutAuditLogDto})">
+            <summary>Admin-only, full view of a checkout session including the raw Monime payload and its attempt history.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Checkout.OrderPaymentDto">
+            <summary>
+            One row in the reconciliation view — an order's payment state, regardless of which of the three
+            checkout paths created it. <see cref="P:AgrismartAPI.Application.Checkout.OrderPaymentDto.PaymentStatus"/> is the order-wide aggregate (every seller's
+            portion paid); <see cref="P:AgrismartAPI.Application.Checkout.OrderPaymentDto.SellerPayments"/> is the actual per-seller breakdown a reconciliation
+            action operates on. An Admin sees every seller's row here; a Seller sees only their own.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.OrderPaymentDto.#ctor(System.Guid,AgrismartAPI.Application.Orders.OrderCustomerDto,System.Decimal,AgrismartAPI.Domain.Orders.PaymentMethod,AgrismartAPI.Domain.Orders.PaymentStatus,AgrismartAPI.Domain.Orders.OrderStatus,System.Nullable{System.DateTimeOffset},System.Nullable{System.Guid},System.String,System.String,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Checkout.SellerPaymentDto},System.DateTimeOffset)">
+            <summary>
+            One row in the reconciliation view — an order's payment state, regardless of which of the three
+            checkout paths created it. <see cref="P:AgrismartAPI.Application.Checkout.OrderPaymentDto.PaymentStatus"/> is the order-wide aggregate (every seller's
+            portion paid); <see cref="P:AgrismartAPI.Application.Checkout.OrderPaymentDto.SellerPayments"/> is the actual per-seller breakdown a reconciliation
+            action operates on. An Admin sees every seller's row here; a Seller sees only their own.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Checkout.SellerPaymentDto">
+            <summary>One seller's own reconciliation state for their products within an order — never another seller's.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Checkout.SellerPaymentDto.#ctor(System.Guid,System.String,System.Decimal,AgrismartAPI.Domain.Orders.PaymentStatus,System.Nullable{System.DateTimeOffset},System.Nullable{System.Guid},System.Nullable{System.DateTimeOffset},System.Nullable{System.Guid})">
+            <summary>One seller's own reconciliation state for their products within an order — never another seller's.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Common.ValidationException.#ctor(System.String,System.Collections.Generic.IReadOnlyDictionary{System.String,System.String[]})">
+            <param name="message">Summary shown to users that only read <c>message</c>.</param>
+            <param name="errors">Field-level messages keyed by camelCase field path, e.g. "soil.fertility".</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.ValidationException.Errors">
+            <summary>Field-level messages, when the caller can point at specific fields. Null otherwise.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Common.ExternalServiceException">
+            <summary>An upstream dependency (e.g. a weather provider) failed or returned unusable data.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Common.ExternalServiceException.#ctor(System.String)">
+            <summary>An upstream dependency (e.g. a weather provider) failed or returned unusable data.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.AppLinksSettings.LoginUrl">
+            <summary>Web login URL, shown to Sellers/Admins (they use the admin web app).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.AppLinksSettings.PlayStoreUrl">
+            <summary>Google Play listing, shown to Buyers (they use the mobile app).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.AppLinksSettings.AppStoreUrl">
+            <summary>Apple App Store listing, shown to Buyers (they use the mobile app).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Common.MonimeApiException">
+            <summary>
+            A Monime API call failed. <see cref="P:AgrismartAPI.Application.Common.MonimeApiException.StatusCode"/> is null when Monime was never reached
+            (network/timeout failure) — callers map a 4xx status to this API's 400 (bad input) and anything
+            else, including null, to a 502 (the payment provider, not the caller, was the problem).
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Common.MonimeApiException.#ctor(System.String,System.Nullable{System.Int32},System.String,System.String)">
+            <summary>
+            A Monime API call failed. <see cref="P:AgrismartAPI.Application.Common.MonimeApiException.StatusCode"/> is null when Monime was never reached
+            (network/timeout failure) — callers map a 4xx status to this API's 400 (bad input) and anything
+            else, including null, to a 502 (the payment provider, not the caller, was the problem).
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeApiException.RequestJson">
+            <summary>The exact JSON body sent to Monime — kept so callers can still write an audit-log row on failure.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeApiException.ResponseJson">
+            <summary>The raw response body Monime returned, if any was received.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Common.MonimeSettings">
+            <summary>Options for Monime's hosted checkout-session API (https://docs.monime.io/apis/versions/caph-2025-08-23).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeSettings.AuthorizationToken">
+            <summary>Space-scoped bearer token from the Monime dashboard. Never accepted from a client request.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeSettings.SpaceId">
+            <summary>Which Monime "space" (merchant account) to act as, e.g. "spc-...".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeSettings.Version">
+            <summary>Pinned API version sent as the Monime-Version header, e.g. "caph.2025-08-23".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeSettings.Currency">
+            <summary>3-letter ISO currency code used for all line items, e.g. "SLE".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeSettings.DefaultSuccessUrl">
+            <summary>Used when the client doesn't send its own successUrl.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Common.MonimeSettings.DefaultCancelUrl">
+            <summary>Used when the client doesn't send its own cancelUrl.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Common.PagedResult`1">
+            <summary>One page of a larger result set. <c>page</c> is 1-based.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Common.PagedResult`1.#ctor(System.Collections.Generic.IReadOnlyList{`0},System.Int32,System.Int32,System.Int32)">
+            <summary>One page of a larger result set. <c>page</c> is 1-based.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Common.UploadedFile">
+            <summary>Framework-agnostic wrapper around an incoming file upload, so the Application layer isn't coupled to ASP.NET Core's IFormFile.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Common.UploadedFile.#ctor(System.IO.Stream,System.String,System.String)">
+            <summary>Framework-agnostic wrapper around an incoming file upload, so the Application layer isn't coupled to ASP.NET Core's IFormFile.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.AreaConverter.ToHectares(System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.AreaUnit,System.Nullable{System.Double},System.Nullable{System.Double})">
+            <summary>Converts a validated area input to hectares.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.FertilizerAppService.SnapshotJsonOptions">
+            <summary>Same shape the API returns, so stored snapshots deserialize back into the DTOs unchanged.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerAppService.KeyPattern">
+            <remarks>
+            Pattern:<br/>
+            <code>^[a-z0-9]+(-[a-z0-9]+)*$</code><br/>
+            Explanation:<br/>
+            <code>
+            ○ Match if at the beginning of the string.<br/>
+            ○ Match a character in the set [0-9a-z] greedily at least once.<br/>
+            ○ Loop greedily any number of times.<br/>
+                ○ 1st capture group.<br/>
+                    ○ Match '-'.<br/>
+                    ○ Match a character in the set [0-9a-z] atomically at least once.<br/>
+            ○ Match if at the end of the string or if before an ending newline.<br/>
+            </code>
+            </remarks>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerAppService.GetOwnedRecommendationAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>Owners see their own records; admins see all. Anyone else gets 404 so ids are not leaked.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerAppService.ToDomainArguments``1(System.Func{``0})">
+            <summary>Domain guard clauses throw ArgumentException; surface them as 400s rather than 500s.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions">
+            <summary>
+            Tunable multipliers and thresholds for the fertilizer calculator, bound from the
+            "FertilizerCalculator" section of appsettings.json. The defaults here mirror appsettings.json so
+            the calculator behaves the same when the section is missing (e.g. in unit tests).
+            Crop and product values live in Infrastructure/Persistence/Seed/FertilizerReferenceData.cs.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.MinYieldScale">
+            <summary>Lower bound on TargetYield / ReferenceYield when scaling nutrient demand.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.MaxYieldScale">
+            <summary>Upper bound on TargetYield / ReferenceYield — demand does not rise linearly forever.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.SoilFertilityMultipliers">
+            <summary>Simple mode: multiplier on all three nutrients per fertility class.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.SoilTypeNitrogenMultipliers">
+            <summary>Extra multiplier on N only, by soil texture (sandy soils leach N).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.SoilTest">
+            <summary>Soil-test mode: Low/Medium/High class boundaries per nutrient.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.LimingPhThreshold">
+            <summary>Below this pH, recommend liming.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.AlkalinePhThreshold">
+            <summary>Above this pH, add the alkaline-soil note.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.OverSupplyTolerancePercent">
+            <summary>Warn when a nutrient is over-supplied by more than this % of the requirement.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.MaxMineralProductKgPerHa">
+            <summary>Warn when mineral (non-organic) fertilizer exceeds this many kg per hectare in total.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.BagRoundingIncrement">
+            <summary>Bags are rounded UP to a multiple of this (0.5 = nearest half bag).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.GramsPerHandful">
+            <summary>Approximate weight of one farmer's handful of granular fertilizer, in grams.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.GramsPerBottleCap">
+            <summary>Approximate weight of one level soft-drink bottle cap of granular fertilizer, in grams.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.MaxAreaHectares">
+            <summary>Largest area accepted by the calculator, in hectares.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.AutomaticCandidatePlans">
+            <summary>
+            Candidate product sets tried when the farmer selects nothing, by product key, in order of
+            preference: the first set that meets the full requirement wins, unless every candidate is fully
+            priced, in which case the cheapest wins. Leave empty to use
+            <see cref="F:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions.DefaultCandidatePlans"/>. (Kept empty by default because the configuration binder
+            appends to, rather than replaces, pre-populated lists.)
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.NutrientThreshold">
+            <summary>A value below <see cref="P:AgrismartAPI.Application.Fertilizer.NutrientThreshold.LowBelow"/> is Low, above <see cref="P:AgrismartAPI.Application.Fertilizer.NutrientThreshold.HighAbove"/> is High, otherwise Medium.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilTestThresholds.NitrogenTotalPercent">
+            <summary>Total N, % (Kjeldahl).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilTestThresholds.PhosphorusBray1MgPerKg">
+            <summary>Available P, mg/kg (Bray-1).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilTestThresholds.PotassiumCmolPerKg">
+            <summary>Exchangeable K, cmol(+)/kg (ammonium acetate).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilTestThresholds.ClassMultipliers">
+            <summary>
+            Multiplier applied to a nutrient's requirement for each soil-test class. This is the
+            "soil supply credit": a High class means the soil already supplies ~40% of the demand.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService">
+            <summary>
+            Turns crop demand, soil condition and available products into a practical fertilizer plan.
+            See README.fertilizer.md for the formulas; every tunable number comes from
+            <see cref="T:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions"/> or the crop/product reference data.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.#ctor(Microsoft.Extensions.Options.IOptions{AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions})">
+            <summary>
+            Turns crop demand, soil condition and available products into a practical fertilizer plan.
+            See README.fertilizer.md for the formulas; every tunable number comes from
+            <see cref="T:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions"/> or the crop/product reference data.
+            </summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.StandardBagKg">
+            <summary>The "bags50Kg" field always counts standard 50 kg bags, whatever the product's own bag size.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.GapToleranceKg">
+            <summary>Nutrient gaps below this many kg are treated as met (float noise, not agronomy).</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.FillOrder">
+            <summary>Straight fertilizers fill P first, then K, then N — so N carried by DAP is counted before Urea is sized.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.IsComplete(AgrismartAPI.Domain.Fertilizer.FertilizerProduct)">
+            <summary>A "complete" product carries all three of N, P2O5 and K2O (NPK blends, manure) and is used as the base.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.LimitingQuantityKg(AgrismartAPI.Domain.Fertilizer.FertilizerProduct,AgrismartAPI.Application.Fertilizer.Nutrients)">
+            <summary>
+            Limiting-nutrient rule: the most compound that can be applied without exceeding the remaining
+            requirement of ANY nutrient it contains.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.ChooseAutomaticPlan(AgrismartAPI.Application.Fertilizer.Nutrients,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Domain.Fertilizer.FertilizerProduct},System.Collections.Generic.IReadOnlyDictionary{System.String,System.Nullable{System.Decimal}},AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions,System.String@)">
+            <summary>
+            Tries each configured candidate product set and keeps: smallest deficit, then lowest cost (only
+            when every candidate is fully priced), then the first in configured order. The first configured
+            plan (NPK 15-15-15 + Urea, topped up with TSP/MOP only when needed) is therefore the default.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.BuildSchedule(AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.Plan,AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile,System.Int32,AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions)">
+            <summary>
+            Products carrying P follow the P split; K-only products follow the K split; N-only products
+            (Urea, Ammonium Sulphate) fill whatever each split's N share still lacks after the others.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCalculatorService.RoundUpTo(System.Double,System.Double)">
+            <summary>Rounds up to a multiple of <paramref name="increment"/> (e.g. 0.5 = nearest half bag). Zero stays zero.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.AreaUnit">
+            <summary>Unit the farm/plot size is given in. Everything is converted to hectares internally.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.AreaUnit.PlotDimensions">
+            <summary>Rectangular plot: use lengthM × widthM instead of area.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.SoilInputMode">
+            <summary>How the soil condition is described.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.SoilInputMode.Simple">
+            <summary>A farmer's judgement: Low / Medium / High fertility.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.SoilInputMode.SoilTest">
+            <summary>Laboratory soil-test values for N, P and K.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.FertilizerSelectionMode.FarmerSelected">
+            <summary>Only the products listed in fertilizerProductIds were used.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Fertilizer.FertilizerSelectionMode.Automatic">
+            <summary>No products were given; the API used the standard recommendation (NPK 15-15-15 + Urea by default).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.NutrientAmountsDto">
+            <summary>Kilograms of each primary nutrient. P and K are expressed as oxides (P2O5, K2O), as on fertilizer bags.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.NutrientAmountsDto.#ctor(System.Double,System.Double,System.Double)">
+            <summary>Kilograms of each primary nutrient. P and K are expressed as oxides (P2O5, K2O), as on fertilizer bags.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerCropDto">
+            <summary>A crop with its nutrient demand. String fields are "" and plantsPerHectare is 0 when not known.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCropDto.#ctor(System.String,System.String,System.String,AgrismartAPI.Application.Fertilizer.NutrientAmountsDto,System.Double,System.Double,System.String,System.Int32,System.Boolean,System.String,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Fertilizer.FertilizerSplitDto})">
+            <summary>A crop with its nutrient demand. String fields are "" and plantsPerHectare is 0 when not known.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerCropRequest">
+            <summary>Admin create/update body for a crop. <c>id</c> is required on POST and ignored on PUT.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCropRequest.#ctor(System.String,System.String,System.String,System.Double,System.Double,System.Double,System.Double,System.Double,System.String,System.Nullable{System.Int32},System.Boolean,System.String,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Fertilizer.FertilizerSplitDto})">
+            <summary>Admin create/update body for a crop. <c>id</c> is required on POST and ignored on PUT.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerProductDto">
+            <summary>A fertilizer product. Optional percentages are 0 and pricePerBag is 0 (hasPrice=false) when not known.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerProductDto.#ctor(System.String,System.String,AgrismartAPI.Domain.Fertilizer.FertilizerProductType,System.Double,System.Double,System.Double,System.Double,System.Double,System.Double,System.Decimal,System.Boolean,System.String,System.String)">
+            <summary>A fertilizer product. Optional percentages are 0 and pricePerBag is 0 (hasPrice=false) when not known.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerProductRequest">
+            <summary>Admin create/update body for a product. <c>id</c> is required on POST and ignored on PUT.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerProductRequest.#ctor(System.String,System.String,AgrismartAPI.Domain.Fertilizer.FertilizerProductType,System.Double,System.Double,System.Double,System.Nullable{System.Double},System.Nullable{System.Double},System.Nullable{System.Double},System.Nullable{System.Decimal},System.String)">
+            <summary>Admin create/update body for a product. <c>id</c> is required on POST and ignored on PUT.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.SoilInputDto">
+            <summary>
+            Soil condition, in one of two modes. If <c>mode</c> is omitted it is inferred: any soil-test value
+            present means soilTest, otherwise simple.
+            </summary>
+            <param name="Mode">simple or soilTest.</param>
+            <param name="Fertility">Simple mode (required): low, medium or high.</param>
+            <param name="SoilType">Optional in both modes: sandy, loamy or clay.</param>
+            <param name="Ph">Optional in both modes, 3.0-10.0 (1:2.5 soil:water).</param>
+            <param name="NitrogenTotalPercent">Soil-test mode: total N in % (Kjeldahl).</param>
+            <param name="PhosphorusBray1MgPerKg">Soil-test mode: available P in mg/kg (Bray-1 extraction).</param>
+            <param name="PotassiumCmolPerKg">Soil-test mode: exchangeable K in cmol(+)/kg (1 M ammonium acetate, pH 7).</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.SoilInputDto.#ctor(System.Nullable{AgrismartAPI.Application.Fertilizer.SoilInputMode},System.Nullable{AgrismartAPI.Application.Fertilizer.SoilFertility},System.Nullable{AgrismartAPI.Application.Fertilizer.SoilType},System.Nullable{System.Double},System.Nullable{System.Double},System.Nullable{System.Double},System.Nullable{System.Double})">
+            <summary>
+            Soil condition, in one of two modes. If <c>mode</c> is omitted it is inferred: any soil-test value
+            present means soilTest, otherwise simple.
+            </summary>
+            <param name="Mode">simple or soilTest.</param>
+            <param name="Fertility">Simple mode (required): low, medium or high.</param>
+            <param name="SoilType">Optional in both modes: sandy, loamy or clay.</param>
+            <param name="Ph">Optional in both modes, 3.0-10.0 (1:2.5 soil:water).</param>
+            <param name="NitrogenTotalPercent">Soil-test mode: total N in % (Kjeldahl).</param>
+            <param name="PhosphorusBray1MgPerKg">Soil-test mode: available P in mg/kg (Bray-1 extraction).</param>
+            <param name="PotassiumCmolPerKg">Soil-test mode: exchangeable K in cmol(+)/kg (1 M ammonium acetate, pH 7).</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilInputDto.Mode">
+            <summary>simple or soilTest.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilInputDto.Fertility">
+            <summary>Simple mode (required): low, medium or high.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilInputDto.SoilType">
+            <summary>Optional in both modes: sandy, loamy or clay.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilInputDto.Ph">
+            <summary>Optional in both modes, 3.0-10.0 (1:2.5 soil:water).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilInputDto.NitrogenTotalPercent">
+            <summary>Soil-test mode: total N in % (Kjeldahl).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilInputDto.PhosphorusBray1MgPerKg">
+            <summary>Soil-test mode: available P in mg/kg (Bray-1 extraction).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.SoilInputDto.PotassiumCmolPerKg">
+            <summary>Soil-test mode: exchangeable K in cmol(+)/kg (1 M ammonium acetate, pH 7).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.ProductPriceDto">
+            <summary>Overrides a product's stored price for this one calculation.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.ProductPriceDto.#ctor(System.String,System.Decimal)">
+            <summary>Overrides a product's stored price for this one calculation.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest">
+            <summary>Inputs for a fertilizer calculation.</summary>
+            <param name="CropId">Crop key from GET /fertilizer/crops, e.g. "maize".</param>
+            <param name="Area">Farm/plot size in <paramref name="AreaUnit"/>. Not used when areaUnit is plotDimensions.</param>
+            <param name="AreaUnit">hectare (default), acre, squareMeter or plotDimensions.</param>
+            <param name="LengthM">Plot length in metres (plotDimensions only).</param>
+            <param name="WidthM">Plot width in metres (plotDimensions only).</param>
+            <param name="Soil">Soil condition (required).</param>
+            <param name="TargetYieldTPerHa">Optional target yield; defaults to the crop's reference yield and is capped at its max realistic yield.</param>
+            <param name="FertilizerProductIds">Products the farmer has or prefers. Omit or send [] to let the API choose.</param>
+            <param name="CustomPrices">Optional per-bag prices that override stored prices.</param>
+            <param name="PlotLabel">Optional plot/farm name. Only stored when saving a recommendation.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.#ctor(System.String,System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.AreaUnit,System.Nullable{System.Double},System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.SoilInputDto,System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Fertilizer.ProductPriceDto},System.String)">
+            <summary>Inputs for a fertilizer calculation.</summary>
+            <param name="CropId">Crop key from GET /fertilizer/crops, e.g. "maize".</param>
+            <param name="Area">Farm/plot size in <paramref name="AreaUnit"/>. Not used when areaUnit is plotDimensions.</param>
+            <param name="AreaUnit">hectare (default), acre, squareMeter or plotDimensions.</param>
+            <param name="LengthM">Plot length in metres (plotDimensions only).</param>
+            <param name="WidthM">Plot width in metres (plotDimensions only).</param>
+            <param name="Soil">Soil condition (required).</param>
+            <param name="TargetYieldTPerHa">Optional target yield; defaults to the crop's reference yield and is capped at its max realistic yield.</param>
+            <param name="FertilizerProductIds">Products the farmer has or prefers. Omit or send [] to let the API choose.</param>
+            <param name="CustomPrices">Optional per-bag prices that override stored prices.</param>
+            <param name="PlotLabel">Optional plot/farm name. Only stored when saving a recommendation.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.CropId">
+            <summary>Crop key from GET /fertilizer/crops, e.g. "maize".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.Area">
+            <summary>Farm/plot size in <paramref name="AreaUnit"/>. Not used when areaUnit is plotDimensions.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.AreaUnit">
+            <summary>hectare (default), acre, squareMeter or plotDimensions.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.LengthM">
+            <summary>Plot length in metres (plotDimensions only).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.WidthM">
+            <summary>Plot width in metres (plotDimensions only).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.Soil">
+            <summary>Soil condition (required).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.TargetYieldTPerHa">
+            <summary>Optional target yield; defaults to the crop's reference yield and is capped at its max realistic yield.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.FertilizerProductIds">
+            <summary>Products the farmer has or prefers. Omit or send [] to let the API choose.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.CustomPrices">
+            <summary>Optional per-bag prices that override stored prices.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest.PlotLabel">
+            <summary>Optional plot/farm name. Only stored when saving a recommendation.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.ProductQuantityDto">
+            <summary>One product to buy. estimatedCost is 0 and hasPrice is false when no price is known.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.ProductQuantityDto.#ctor(System.String,System.String,AgrismartAPI.Domain.Fertilizer.FertilizerProductType,System.Double,System.Double,System.Double,System.Double,System.Decimal,System.Boolean,System.Decimal,AgrismartAPI.Application.Fertilizer.NutrientAmountsDto)">
+            <summary>One product to buy. estimatedCost is 0 and hasPrice is false when no price is known.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.ScheduleProductDto">
+            <summary>A product's share of one application. gramsPerPlant is 0 and perPlantHint "" when plant spacing is unknown.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.ScheduleProductDto.#ctor(System.String,System.String,System.Double,System.Double,System.String)">
+            <summary>A product's share of one application. gramsPerPlant is 0 and perPlantHint "" when plant spacing is unknown.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerRecommendationQuery">
+            <summary>History filters. <c>userId</c> is honoured for admins only.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerRecommendationQuery.#ctor(System.String,System.String,System.Nullable{System.Guid},System.Int32,System.Int32)">
+            <summary>History filters. <c>userId</c> is honoured for admins only.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.FertilizerRequestValidator">
+            <summary>
+            Field-level validation of a <see cref="T:AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest"/>. Collects every problem so
+            the app can highlight all bad fields at once; keys are camelCase JSON paths.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerRequestValidator.ResolveMode(AgrismartAPI.Application.Fertilizer.SoilInputDto)">
+            <summary>Resolves the soil input mode, inferring it from the values present when not given.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.FertilizerRequestValidator.Validate(AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest,System.Collections.Generic.IReadOnlyCollection{AgrismartAPI.Domain.Fertilizer.FertilizerProduct},System.Double)">
+            <param name="catalogue">When given, product ids are also checked for existence.</param>
+        </member>
+        <member name="T:AgrismartAPI.Application.Fertilizer.Nutrients">
+            <summary>Kilograms of N, P2O5 and K2O, with the arithmetic the calculator needs.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.Nutrients.#ctor(System.Double,System.Double,System.Double)">
+            <summary>Kilograms of N, P2O5 and K2O, with the arithmetic the calculator needs.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Fertilizer.Nutrients.SuppliedBy(AgrismartAPI.Domain.Fertilizer.FertilizerProduct,System.Double)">
+            <summary>Nutrients in <paramref name="kg"/> of <paramref name="product"/>: kg × (% ÷ 100).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Harvest.HarvestPredictionRequest">
+            <summary>Crop key, latitude/longitude and planting date needed to run a harvest prediction.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Harvest.HarvestPredictionRequest.#ctor(System.String,System.Double,System.Double,System.DateOnly,System.Boolean,System.Nullable{System.Double})">
+            <summary>Crop key, latitude/longitude and planting date needed to run a harvest prediction.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Orders.OrderAppService.CreateMonimeOrderAsync(System.Guid,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Orders.OrderItemRequest},System.Threading.CancellationToken)">
+            <summary>Used only by <c>CheckoutAppService</c> to place the underlying order for a Monime checkout session.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Orders.CreateOrderRequest">
+            <summary><see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.MonimeOnline"/> is not accepted here — use <c>POST /checkout/sessions</c> for that flow.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Orders.CreateOrderRequest.#ctor(System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Orders.OrderItemRequest},AgrismartAPI.Domain.Orders.PaymentMethod)">
+            <summary><see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.MonimeOnline"/> is not accepted here — use <c>POST /checkout/sessions</c> for that flow.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Scans.ScanAppService.CreateAsync(System.Guid,System.IO.Stream,System.String,System.String,System.Nullable{System.Double},System.Nullable{System.Double},System.Threading.CancellationToken)">
+            <summary>
+            Diagnoses the uploaded photo (via Kindwise, or the mock engine in local dev) and saves both the
+            image and the resulting diagnosis to the user's scan history in one call.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.UserAppService.CreateAsync(AgrismartAPI.Application.Users.CreateUserRequest,System.Threading.CancellationToken)">
+            <summary>Admin-only: creates a seller or buyer account directly, without going through public self-registration.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.UserAppService.UpdateCredentialsAsync(System.Guid,AgrismartAPI.Application.Users.UpdateUserCredentialsRequest,System.Threading.CancellationToken)">
+            <summary>Admin-only: updates a user's name, email and/or password. Sends a notification email for any change made.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.UserAppService.DeleteAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>Admin-only: permanently deletes a user account. Sends a notification email to the deleted user.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Users.CreateUserRequest">
+            <summary>Admin-only: creates a seller or buyer account directly (bypasses public self-registration).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.CreateUserRequest.#ctor(System.String,System.String,System.String,AgrismartAPI.Domain.Users.UserRole)">
+            <summary>Admin-only: creates a seller or buyer account directly (bypasses public self-registration).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Users.UpdateUserCredentialsRequest">
+            <summary>Admin-only: updates a user's name, email and/or password. Any changed field triggers a notification email.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.UpdateUserCredentialsRequest.#ctor(System.String,System.String,System.String)">
+            <summary>Admin-only: updates a user's name, email and/or password. Any changed field triggers a notification email.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Users.UserNotificationService">
+            <summary>Sends account lifecycle emails (new account credentials, credential/role changes) via <see cref="T:AgrismartAPI.Application.Abstractions.IEmailSender"/>.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.UserNotificationService.#ctor(AgrismartAPI.Application.Abstractions.IEmailSender,Microsoft.Extensions.Options.IOptions{AgrismartAPI.Application.Common.AppLinksSettings})">
+            <summary>Sends account lifecycle emails (new account credentials, credential/role changes) via <see cref="T:AgrismartAPI.Application.Abstractions.IEmailSender"/>.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.UserNotificationService.SendAccountCreatedEmailAsync(AgrismartAPI.Domain.Users.User,System.String,System.Boolean,System.Threading.CancellationToken)">
+            <param name="isTemporaryPassword">
+            True for an admin-issued password (via <c>POST /users</c> or a credentials reset) — the email
+            says it's temporary and expires in <see cref="F:AgrismartAPI.Domain.Users.User.TemporaryPasswordLifetime"/>. False for a
+            buyer's own self-chosen password from <c>POST /auth/register</c> — it's just a welcome/confirmation.
+            </param>
+        </member>
+        <member name="M:AgrismartAPI.Application.Users.UserNotificationService.AccessLinksHtml(AgrismartAPI.Domain.Users.UserRole)">
+            <summary>Sellers/Admins use the web admin app (login link); Buyers use the mobile app (store links).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.AuditLogsController">
+            <summary>Admin-only activity trail: account creation, credential changes, role changes, seller changes, logins.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AuditLogsController.#ctor(AgrismartAPI.Application.Audit.AuditLogAppService)">
+            <summary>Admin-only activity trail: account creation, credential changes, role changes, seller changes, logins.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AuthController.ChangePassword(AgrismartAPI.Application.Auth.ChangePasswordRequest,System.Threading.CancellationToken)">
+            <summary>Self-service password change. If login returned "mustChangePassword": true (e.g. an admin-issued temporary password), call this right after login with that temporary password as the current one.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AuthController.RegisterBiometric(AgrismartAPI.Application.Auth.BiometricRegisterRequest,System.Threading.CancellationToken)">
+            <summary>Registers (or replaces) the calling device's biometric public key. Call right after a normal login, with that login's JWT.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AuthController.UnregisterBiometric(System.String,System.Threading.CancellationToken)">
+            <summary>Turns off biometric login for the calling device.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AuthController.RequestBiometricChallenge(AgrismartAPI.Application.Auth.BiometricChallengeRequest,System.Threading.CancellationToken)">
+            <summary>Step 1 of biometric login: get a one-time challenge to sign. Public — the device isn't holding a valid JWT at this point.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AuthController.LoginWithBiometric(AgrismartAPI.Application.Auth.BiometricLoginRequest,System.Threading.CancellationToken)">
+            <summary>Step 2 of biometric login: submit the signed challenge and receive a normal JWT back.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CartController.Checkout(AgrismartAPI.Application.Carts.CartCheckoutRequest,System.Threading.CancellationToken)">
+            <summary>Converts the caller's current cart into a cash-on-pickup or unpaid-hold order, then empties the cart. Use POST /checkout/sessions to pay online via Monime instead.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.CheckoutController">
+            <summary>Path 1 of the three checkout flows — pay online via Monime (card/bank/momo, incl. Orange Money) before delivery. See MONIME-INTEGRATION-README.md.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutController.#ctor(AgrismartAPI.Application.Checkout.CheckoutAppService,AgrismartAPI.Application.Abstractions.ICurrentUserService)">
+            <summary>Path 1 of the three checkout flows — pay online via Monime (card/bank/momo, incl. Orange Money) before delivery. See MONIME-INTEGRATION-README.md.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutController.CreateSession(AgrismartAPI.Application.Checkout.CreateCheckoutSessionRequest,System.Threading.CancellationToken)">
+            <summary>Places an order from the caller's cart and creates a Monime hosted-checkout session for it. Redirect the browser to the returned redirectUrl.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutController.GetSession(System.Guid,System.Threading.CancellationToken)">
+            <summary>Polls the caller's own checkout session for its current status while waiting for the redirect to complete.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.CheckoutReconciliationController">
+            <summary>
+            Payment reconciliation across all three checkout flows. An Admin can act on every seller's row on
+            every order; a Seller can act only on their own row within orders containing at least one of their
+            own products (same order-level scoping as <c>GET /orders/mine-as-seller</c>) — a Seller can never
+            confirm or reconcile another seller's products, even within the same multi-vendor order. Raw Monime
+            session/audit visibility stays Admin-only. See MONIME-INTEGRATION-README.md and README.admin.md.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutReconciliationController.#ctor(AgrismartAPI.Application.Checkout.CheckoutAppService,AgrismartAPI.Application.Abstractions.ICurrentUserService)">
+            <summary>
+            Payment reconciliation across all three checkout flows. An Admin can act on every seller's row on
+            every order; a Seller can act only on their own row within orders containing at least one of their
+            own products (same order-level scoping as <c>GET /orders/mine-as-seller</c>) — a Seller can never
+            confirm or reconcile another seller's products, even within the same multi-vendor order. Raw Monime
+            session/audit visibility stays Admin-only. See MONIME-INTEGRATION-README.md and README.admin.md.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutReconciliationController.GetTransactions(System.Nullable{AgrismartAPI.Domain.Orders.PaymentStatus},System.Nullable{AgrismartAPI.Domain.Orders.PaymentMethod},System.Threading.CancellationToken)">
+            <summary>Every order's payment state the caller is allowed to see — filter by paymentStatus (pending/confirmed/paid) and/or paymentMethod to build the reconciliation grid.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutReconciliationController.ConfirmPayment(System.Guid,System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Confirms payment was received (e.g. cash handed over at pickup) — Pending → Confirmed, for one
+            seller's own products within the order. A Seller's own products are always used, regardless of
+            what (if anything) is passed as <paramref name="sellerId"/>. An Admin must pass it when the
+            order spans more than one seller.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutReconciliationController.MarkPaid(System.Guid,System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Marks one seller's own products within the order as fully paid/reconciled — the final step for
+            cash-on-pickup/unpaid-hold orders. A Seller's own products are always used, regardless of what
+            (if anything) is passed as <paramref name="sellerId"/>. An Admin must pass it when the order
+            spans more than one seller.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutReconciliationController.SyncMonimeSession(System.Guid,System.Threading.CancellationToken)">
+            <summary>Monime-only: re-fetches the session status from Monime and reconciles the order against it.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutReconciliationController.GetSessions(System.Threading.CancellationToken)">
+            <summary>Every Monime checkout session ever created — for support/troubleshooting ("what happened to this payment"). Admin-only: spans every seller's orders.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CheckoutReconciliationController.GetSession(System.Guid,System.Threading.CancellationToken)">
+            <summary>One session's full detail, including the raw Monime payload and every create/reconcile attempt against it. Admin-only.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.CropsController">
+            <summary>Crop catalog backing the "Crops and harvest prediction" feature — see also HarvestPredictionsController.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.CropsController.#ctor(AgrismartAPI.Application.Harvest.HarvestAppService)">
+            <summary>Crop catalog backing the "Crops and harvest prediction" feature — see also HarvestPredictionsController.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.FertilizerController">
+            <summary>
+            "Fertilizer recommendation and calculator" feature: how much fertilizer to buy and apply for a crop,
+            area, soil condition and target yield. Reference data and the stateless calculator are open to
+            anonymous callers; saved history requires sign-in; reference-data edits are admin-only.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.#ctor(AgrismartAPI.Application.Fertilizer.FertilizerAppService)">
+            <summary>
+            "Fertilizer recommendation and calculator" feature: how much fertilizer to buy and apply for a crop,
+            area, soil condition and target yield. Reference data and the stateless calculator are open to
+            anonymous callers; saved history requires sign-in; reference-data edits are admin-only.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.GetCrops(System.Threading.CancellationToken)">
+            <summary>Lists crops with their nutrient requirements and application schedules.</summary>
+            <response code="200">All crops, ordered by name.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.GetCrop(System.String,System.Threading.CancellationToken)">
+            <summary>Gets one crop's nutrient data.</summary>
+            <param name="id">Crop id, e.g. "maize".</param>
+            <param name="cancellationToken">Request cancellation.</param>
+            <response code="200">The crop.</response>
+            <response code="404">No crop with that id.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.CreateCrop(AgrismartAPI.Application.Fertilizer.FertilizerCropRequest,System.Threading.CancellationToken)">
+            <summary>Adds a crop (admin only).</summary>
+            <remarks>Each nutrient's schedule percentages must add up to 100.</remarks>
+            <response code="201">Created.</response>
+            <response code="400">Invalid values.</response>
+            <response code="409">A crop with that id already exists.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.UpdateCrop(System.String,AgrismartAPI.Application.Fertilizer.FertilizerCropRequest,System.Threading.CancellationToken)">
+            <summary>Updates a crop's nutrient data and schedule (admin only). The id in the body is ignored.</summary>
+            <param name="id">Crop id, e.g. "maize".</param>
+            <param name="request">New values.</param>
+            <param name="cancellationToken">Request cancellation.</param>
+            <response code="200">Updated.</response>
+            <response code="400">Invalid values.</response>
+            <response code="404">No crop with that id.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.GetProducts(System.Threading.CancellationToken)">
+            <summary>Lists fertilizer products with their analysis, bag size and price.</summary>
+            <response code="200">All products, ordered by name.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.GetProduct(System.String,System.Threading.CancellationToken)">
+            <summary>Gets one fertilizer product.</summary>
+            <param name="id">Product id, e.g. "npk-15-15-15".</param>
+            <param name="cancellationToken">Request cancellation.</param>
+            <response code="200">The product.</response>
+            <response code="404">No product with that id.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.CreateProduct(AgrismartAPI.Application.Fertilizer.FertilizerProductRequest,System.Threading.CancellationToken)">
+            <summary>Adds a fertilizer product (admin only).</summary>
+            <response code="201">Created.</response>
+            <response code="400">Invalid values.</response>
+            <response code="409">A product with that id already exists.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.UpdateProduct(System.String,AgrismartAPI.Application.Fertilizer.FertilizerProductRequest,System.Threading.CancellationToken)">
+            <summary>Updates a fertilizer product, e.g. its price per bag (admin only). The id in the body is ignored.</summary>
+            <param name="id">Product id, e.g. "urea".</param>
+            <param name="request">New values. Send pricePerBag: null to clear the price.</param>
+            <param name="cancellationToken">Request cancellation.</param>
+            <response code="200">Updated.</response>
+            <response code="400">Invalid values.</response>
+            <response code="404">No product with that id.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.Calculate(AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest,System.Threading.CancellationToken)">
+            <summary>Calculates a fertilizer plan without saving it.</summary>
+            <remarks>
+            Give the soil either as <c>soil.fertility</c> (simple mode) or as soil-test values
+            (total N %, Bray-1 P mg/kg, exchangeable K cmol/kg). Leave <c>fertilizerProductIds</c> empty to
+            let the API choose products. Validation errors return 400 with field-level <c>errors</c>.
+            </remarks>
+            <response code="200">The plan: quantities, bags, schedule, cost, warnings and notes.</response>
+            <response code="400">Invalid input, unknown crop or unknown product.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.SaveRecommendation(AgrismartAPI.Application.Fertilizer.FertilizerCalculationRequest,System.Threading.CancellationToken)">
+            <summary>Calculates a fertilizer plan and saves it to the signed-in user's history.</summary>
+            <remarks>Same body as POST /fertilizer/calculate; <c>plotLabel</c> is stored for filtering.</remarks>
+            <response code="201">Saved; returns the stored inputs and result.</response>
+            <response code="400">Invalid input.</response>
+            <response code="401">Not signed in.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.GetRecommendations(System.String,System.String,System.Nullable{System.Guid},System.Nullable{System.Int32},System.Nullable{System.Int32},System.Threading.CancellationToken)">
+            <summary>Lists saved recommendations, newest first (paginated).</summary>
+            <param name="cropId">Only this crop, e.g. "maize".</param>
+            <param name="plotLabel">Only this plot label (case-insensitive exact match).</param>
+            <param name="userId">Admins only: a farmer's user id. Omit to see all farmers (admin) or yourself.</param>
+            <param name="page">1-based page number (default 1).</param>
+            <param name="pageSize">Items per page, 1-100 (default 20).</param>
+            <param name="cancellationToken">Request cancellation.</param>
+            <response code="200">One page of summaries.</response>
+            <response code="400">Invalid paging values.</response>
+            <response code="401">Not signed in.</response>
+            <response code="403">A non-admin asked for another user's history.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.GetRecommendation(System.Guid,System.Threading.CancellationToken)">
+            <summary>Gets one saved recommendation with its full inputs and result.</summary>
+            <param name="id">Recommendation id.</param>
+            <param name="cancellationToken">Request cancellation.</param>
+            <response code="200">The recommendation.</response>
+            <response code="401">Not signed in.</response>
+            <response code="404">Not found, or it belongs to another user.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FertilizerController.DeleteRecommendation(System.Guid,System.Threading.CancellationToken)">
+            <summary>Deletes a saved recommendation.</summary>
+            <param name="id">Recommendation id.</param>
+            <param name="cancellationToken">Request cancellation.</param>
+            <response code="204">Deleted.</response>
+            <response code="401">Not signed in.</response>
+            <response code="404">Not found, or it belongs to another user.</response>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.HarvestPredictionsController">
+            <summary>
+            "Crops and harvest prediction" feature: growing-degree-day harvest date prediction for a crop,
+            location and planting date. Open to anonymous callers (like the crop catalog); predictions made
+            by a signed-in user are additionally saved to their history — see GetHistory.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.HarvestPredictionsController.#ctor(AgrismartAPI.Application.Harvest.HarvestAppService,AgrismartAPI.Application.Abstractions.ICurrentUserService)">
+            <summary>
+            "Crops and harvest prediction" feature: growing-degree-day harvest date prediction for a crop,
+            location and planting date. Open to anonymous callers (like the crop catalog); predictions made
+            by a signed-in user are additionally saved to their history — see GetHistory.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.HarvestPredictionsController.PredictQuery(System.String,System.Double,System.Double,System.DateOnly,System.Nullable{System.Boolean},System.Nullable{System.Double},System.Threading.CancellationToken)">
+            <summary>Same prediction, as a GET with query parameters for quick manual testing.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.OrdersController.GetAll(System.Threading.CancellationToken)">
+            <summary>Every order across every customer, including buyer details and the seller of each item.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.OrdersController.GetMineAsSeller(System.Threading.CancellationToken)">
+            <summary>Orders containing at least one item sold by the calling seller, scoped to just that seller's items.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Controllers.Requests.TutorialVideoForm.VideoUrl">
+            <summary>Optional when a VideoFile is uploaded instead.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.Requests.UploadUrlHelper">
+            <summary>Resolves a stored upload path (e.g. "/uploads/products/x.jpg") into an absolute URL for the current request. Leaves already-absolute URLs (external links) untouched.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.UsersController.Create(AgrismartAPI.Application.Users.CreateUserRequest,System.Threading.CancellationToken)">
+            <summary>Admin-only: creates a seller or buyer account directly (bypasses public self-registration).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.UsersController.UpdateCredentials(System.Guid,AgrismartAPI.Application.Users.UpdateUserCredentialsRequest,System.Threading.CancellationToken)">
+            <summary>Admin-only: updates a user's name, email and/or password. Notifies the user by email of any change.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.UsersController.Delete(System.Guid,System.Threading.CancellationToken)">
+            <summary>Admin-only: permanently deletes a user account. Notifies the user by email.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Checkout.CheckoutAuditLog">
+            <summary>One row per Monime create-session attempt (success or failure) — see MONIME-INTEGRATION-README.md §10.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Checkout.CheckoutSession">
+            <summary>A Monime hosted-checkout session created for one <c>Order</c> (see MONIME-INTEGRATION-README.md).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Checkout.CheckoutSession.Status">
+            <summary>Monime's own session status — one of "pending", "completed", "cancelled", "expired".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Checkout.CheckoutSession.RawResponseJson">
+            <summary>The raw Monime response body, kept verbatim for support/troubleshooting.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Checkout.CheckoutSession.UpdateStatus(System.String,System.String)">
+            <summary>Applies the latest status/raw payload fetched from Monime during reconciliation.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Fertilizer.FertilizerSplit">
+            <summary>One application in a crop's split-fertilizer schedule.</summary>
+            <param name="Stage">Display name, e.g. "Basal (at planting)".</param>
+            <param name="DaysAfterPlanting">
+            Days after planting/transplanting. For perennials (cocoa, oil palm) this is days after the start of
+            the rainy season — see <paramref name="Timing"/>.
+            </param>
+            <param name="Timing">Plain-language timing a farmer can follow, e.g. "4-6 weeks after planting".</param>
+            <param name="NitrogenPercent">Share of the season's total N applied at this stage (0-100).</param>
+            <param name="PhosphatePercent">Share of the season's total P2O5 applied at this stage (0-100).</param>
+            <param name="PotashPercent">Share of the season's total K2O applied at this stage (0-100).</param>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Fertilizer.FertilizerSplit.#ctor(System.String,System.Int32,System.String,System.Double,System.Double,System.Double)">
+            <summary>One application in a crop's split-fertilizer schedule.</summary>
+            <param name="Stage">Display name, e.g. "Basal (at planting)".</param>
+            <param name="DaysAfterPlanting">
+            Days after planting/transplanting. For perennials (cocoa, oil palm) this is days after the start of
+            the rainy season — see <paramref name="Timing"/>.
+            </param>
+            <param name="Timing">Plain-language timing a farmer can follow, e.g. "4-6 weeks after planting".</param>
+            <param name="NitrogenPercent">Share of the season's total N applied at this stage (0-100).</param>
+            <param name="PhosphatePercent">Share of the season's total P2O5 applied at this stage (0-100).</param>
+            <param name="PotashPercent">Share of the season's total K2O applied at this stage (0-100).</param>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerSplit.Stage">
+            <summary>Display name, e.g. "Basal (at planting)".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerSplit.DaysAfterPlanting">
+            <summary>
+            Days after planting/transplanting. For perennials (cocoa, oil palm) this is days after the start of
+            the rainy season — see <paramref name="Timing"/>.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerSplit.Timing">
+            <summary>Plain-language timing a farmer can follow, e.g. "4-6 weeks after planting".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerSplit.NitrogenPercent">
+            <summary>Share of the season's total N applied at this stage (0-100).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerSplit.PhosphatePercent">
+            <summary>Share of the season's total P2O5 applied at this stage (0-100).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerSplit.PotashPercent">
+            <summary>Share of the season's total K2O applied at this stage (0-100).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile">
+            <summary>
+            Nutrient demand and application schedule for one crop. Kept separate from the harvest
+            <c>CropProfile</c> (thermal-time data) so neither feature's reference data constrains the other;
+            <see cref="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.Key"/> matches the harvest crop key wherever both exist.
+            </summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.SplitSumTolerance">
+            <summary>Tolerance when checking that each nutrient's schedule adds up to 100%.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.Key">
+            <summary>Stable lowercase key used in API requests, e.g. "maize".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.LocalName">
+            <summary>Krio / local name, if known.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.NitrogenKgPerHa">
+            <summary>N required (kg/ha) to produce <see cref="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.ReferenceYieldTPerHa"/>.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.PhosphateKgPerHa">
+            <summary>P2O5 required (kg/ha) to produce <see cref="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.ReferenceYieldTPerHa"/>.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.PotashKgPerHa">
+            <summary>K2O required (kg/ha) to produce <see cref="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.ReferenceYieldTPerHa"/>.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.ReferenceYieldTPerHa">
+            <summary>Yield (t/ha) the base nutrient rates are calibrated for.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.MaxRealisticYieldTPerHa">
+            <summary>Highest target yield (t/ha) the calculator will accept before capping.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.YieldBasis">
+            <summary>What the yield figures measure, e.g. "paddy", "fresh roots", "dry beans".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.PlantsPerHectare">
+            <summary>Typical plants (or stands) per hectare; enables grams-per-plant guidance. Null for broadcast crops.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.IsPerennial">
+            <summary>True for tree crops whose rates are per hectare per year of a mature plantation.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile.Notes">
+            <summary>Crop-specific agronomic advice appended to every recommendation.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Fertilizer.FertilizerProduct">
+            <summary>A fertilizer a farmer can buy, described by its guaranteed analysis (% by weight).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerProduct.Key">
+            <summary>Stable lowercase key used in API requests, e.g. "npk-15-15-15".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerProduct.PricePerBag">
+            <summary>Typical price of one bag, in the configured currency (SLE). Null when unknown.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Fertilizer.FertilizerProductType.Compound">
+            <summary>Carries two or more of N, P2O5 and K2O, e.g. NPK 15-15-15 or DAP.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Fertilizer.FertilizerProductType.Straight">
+            <summary>Carries one primary nutrient, e.g. Urea (N), TSP (P2O5), MOP (K2O).</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Fertilizer.FertilizerProductType.Organic">
+            <summary>Manures and composts — low, variable analysis and slow release.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Fertilizer.FertilizerRecommendation">
+            <summary>
+            A saved fertilizer calculation. The full request and result are stored as JSON snapshots so the
+            history reads exactly as the farmer saw it, even after reference data or formulas change.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerRecommendation.CropId">
+            <summary>Crop key at the time of calculation, e.g. "maize".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerRecommendation.CropName">
+            <summary>Crop display name, snapshotted.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Fertilizer.FertilizerRecommendation.PlotLabel">
+            <summary>Optional farmer-chosen label for the farm/plot, e.g. "Back field by the stream".</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Fertilizer.IFertilizerRecommendationRepository.SearchAsync(System.Nullable{System.Guid},System.String,System.String,System.Int32,System.Int32,System.Threading.CancellationToken)">
+            <summary>Newest first. Null filters are ignored; <paramref name="plotLabel"/> matches case-insensitively.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Harvest.GrowthStage">
+            <param name="Name">Stage name, e.g. "Flowering".</param>
+            <param name="StartFraction">Fraction of GddToMaturity at which this stage begins (0.0 - 1.0).</param>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Harvest.GrowthStage.#ctor(System.String,System.Double)">
+            <param name="Name">Stage name, e.g. "Flowering".</param>
+            <param name="StartFraction">Fraction of GddToMaturity at which this stage begins (0.0 - 1.0).</param>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.GrowthStage.Name">
+            <summary>Stage name, e.g. "Flowering".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.GrowthStage.StartFraction">
+            <summary>Fraction of GddToMaturity at which this stage begins (0.0 - 1.0).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Harvest.CropProfile">
+            <summary>
+            Thermal-time profile for one crop. These numbers drive the whole prediction, so they
+            are the first thing to calibrate against local trial data before this goes near a real farmer.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.CropProfile.Key">
+            <summary>Stable lowercase key used in API requests, e.g. "maize".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.CropProfile.BaseTemperatureC">
+            <summary>Lower developmental threshold (T-base). Below this the crop accumulates no thermal time.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.CropProfile.UpperTemperatureC">
+            <summary>Upper cut-off. Temperatures above this contribute no extra development (Method B / modified GDD).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.CropProfile.GddToMaturity">
+            <summary>Accumulated GDD from planting to harvest maturity.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.CropProfile.TypicalDaysToMaturity">
+            <summary>Calendar-day rule of thumb, used only as a sanity check.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.CropProfile.Stages">
+            <summary>Phenological stages, keyed by the fraction of total GDD at which each begins.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Harvest.TemperatureSource">
+            <summary>Where a day's temperatures came from. Surfaced in the response so the caller can see
+            how much of the prediction rests on measurement vs. projection.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Harvest.TemperatureSource.Observed">
+            <summary>Reanalysis / observed record (Open-Meteo archive).</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Harvest.TemperatureSource.Forecast">
+            <summary>Numerical weather forecast, typically the next 16 days.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Harvest.TemperatureSource.Climatology">
+            <summary>Replayed from a historical analog year (climatology).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Harvest.HarvestPrediction">
+            <summary>
+            A saved record of one harvest prediction run — the durable subset of a
+            <see cref="T:AgrismartAPI.Domain.Harvest.HarvestPredictionResult"/> (the verbose day-by-day trace is not persisted).
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.HarvestPrediction.UserId">
+            <summary>Who asked for this prediction. Null when the caller was not authenticated.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.HarvestPrediction.CropId">
+            <summary>Crop key at the time of prediction, e.g. "maize".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Harvest.HarvestPrediction.CropName">
+            <summary>Crop display name, snapshotted so history reads correctly even if the catalog changes later.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Harvest.HarvestPredictionResult">
+            <summary>Pure computation result produced by <see cref="!:IHarvestPredictor"/> — not persisted as-is;
+            <see cref="T:AgrismartAPI.Domain.Harvest.HarvestPrediction"/> stores the durable subset of it.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Harvest.HarvestPredictionResult.#ctor(System.DateOnly,System.Boolean,AgrismartAPI.Domain.Harvest.GddSummary,AgrismartAPI.Domain.Harvest.GrowthStageInfo,AgrismartAPI.Domain.Harvest.HarvestWindow,AgrismartAPI.Domain.Harvest.MethodologyInfo,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Domain.Harvest.DailyGddPoint})">
+            <summary>Pure computation result produced by <see cref="!:IHarvestPredictor"/> — not persisted as-is;
+            <see cref="T:AgrismartAPI.Domain.Harvest.HarvestPrediction"/> stores the durable subset of it.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Orders.Order.UnpaidHoldLifetime">
+            <summary>How long a <see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.UnpaidHold"/> order's price/stock hold is honoured before it auto-cancels.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Orders.Order.PaymentStatus">
+            <summary>
+            Order-wide aggregate, derived from <see cref="P:AgrismartAPI.Domain.Orders.Order.SellerPayments"/>: <c>Paid</c> only once every
+            seller's portion is paid, <c>Pending</c> if any seller's portion still is, else <c>Confirmed</c>.
+            Persisted (recomputed on every mutation) so it stays queryable/filterable in SQL.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Orders.Order.SellerPayments">
+            <summary>
+            One row per distinct seller among <see cref="P:AgrismartAPI.Domain.Orders.Order.Items"/> — a multi-vendor order's payment is
+            reconciled seller-by-seller, never as one lump action a single seller could apply to everyone
+            else's products too.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Orders.Order.HoldExpiresAt">
+            <summary>Set only for <see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.UnpaidHold"/> orders — when the price/stock hold lapses.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Orders.Order.CheckoutSessionId">
+            <summary>Set once a Monime checkout session has been created for this order (<see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.MonimeOnline"/> only).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Orders.Order.AttachCheckoutSession(System.Guid)">
+            <summary>Links this order to the Monime checkout session created for it. <see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.MonimeOnline"/> only.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Orders.Order.ConfirmSellerPayment(System.Guid,System.Guid)">
+            <summary>A seller (or admin acting for them) confirms payment was received for their own products in this order — never another seller's.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Orders.Order.MarkSellerPaid(System.Guid,System.Nullable{System.Guid})">
+            <summary>A seller (or admin acting for them) marks their own products in this order as fully paid/reconciled.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Orders.Order.MarkAllSellersPaid(System.Nullable{System.Guid})">
+            <summary>
+            Marks every seller's portion paid at once — used only when a single external event covers the
+            whole order (Monime charges the customer once for the entire cart), never triggered by one
+            seller acting on another's behalf.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Orders.Order.CancelUnpaid">
+            <summary>Cancels an order whose price/stock hold lapsed unpaid (<see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.UnpaidHold"/>) or whose Monime session expired/was cancelled.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Orders.OrderItem">
+            <summary>Snapshots the product's name/price at order time so later catalogue edits don't rewrite order history.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Orders.OrderItem.#ctor(System.Guid,System.String,System.Decimal,System.Int32,System.Guid,System.String)">
+            <summary>Snapshots the product's name/price at order time so later catalogue edits don't rewrite order history.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Orders.PaymentMethod">
+            <summary>How a customer chose to settle an order — see MONIME-INTEGRATION-README.md §2 for the three flows.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Orders.PaymentMethod.MonimeOnline">
+            <summary>Pay up front through Monime's hosted checkout (card/bank/momo, incl. Orange Money) before delivery.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Orders.PaymentMethod.CashOnPickup">
+            <summary>Pay in person (cash or in-app-selected provider) when the goods are collected.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Orders.PaymentMethod.UnpaidHold">
+            <summary>Order placed unpaid; price/stock are only held for <see cref="F:AgrismartAPI.Domain.Orders.Order.UnpaidHoldLifetime"/>.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Orders.PaymentStatus">
+            <summary>Reconciliation state of an order's payment — independent of <see cref="T:AgrismartAPI.Domain.Orders.OrderStatus"/> (fulfillment).</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Orders.PaymentStatus.Pending">
+            <summary>No payment has been received/confirmed yet.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Orders.PaymentStatus.Confirmed">
+            <summary>An admin (or Monime) confirmed payment was received, pending final reconciliation.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Orders.PaymentStatus.Paid">
+            <summary>Payment is fully reconciled/settled.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Orders.SellerPayment">
+            <summary>
+            One seller's own reconciliation state for their portion of an <see cref="T:AgrismartAPI.Domain.Orders.Order"/>. An order can span
+            multiple sellers (a multi-vendor cart); each seller only ever confirms/reconciles their own row —
+            never another seller's — see <see cref="M:AgrismartAPI.Domain.Orders.Order.ConfirmSellerPayment(System.Guid,System.Guid)"/>/<see cref="M:AgrismartAPI.Domain.Orders.Order.MarkSellerPaid(System.Guid,System.Nullable{System.Guid})"/>.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Orders.SellerPayment.#ctor(System.Guid,AgrismartAPI.Domain.Orders.PaymentStatus,System.Nullable{System.DateTimeOffset},System.Nullable{System.Guid},System.Nullable{System.DateTimeOffset},System.Nullable{System.Guid})">
+            <summary>
+            One seller's own reconciliation state for their portion of an <see cref="T:AgrismartAPI.Domain.Orders.Order"/>. An order can span
+            multiple sellers (a multi-vendor cart); each seller only ever confirms/reconciles their own row —
+            never another seller's — see <see cref="M:AgrismartAPI.Domain.Orders.Order.ConfirmSellerPayment(System.Guid,System.Guid)"/>/<see cref="M:AgrismartAPI.Domain.Orders.Order.MarkSellerPaid(System.Guid,System.Nullable{System.Guid})"/>.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Tutorials.ITutorialRepository.SetLikeAsync(System.Guid,System.Guid,System.Boolean,System.Threading.CancellationToken)">
+            <summary>Sets the like state for (videoId, userId) and returns the video's updated LikeCount.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Users.BiometricCredential">
+            <summary>
+            A device-bound public key used for biometric login. The private key never leaves the
+            device's secure hardware (Keystore/Secure Enclave) — the biometric prompt only unlocks it
+            to sign a server-issued challenge.
+            </summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Users.User.TemporaryPasswordLifetime">
+            <summary>How long an admin-issued temporary password remains valid for login before it must be reset.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Users.User.MustChangePassword">
+            <summary>True while the current password is an admin-issued temporary one the user hasn't replaced yet.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Users.User.PasswordExpiresAt">
+            <summary>When the current temporary password stops being accepted for login. Null once the user sets their own password.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Users.User.Register(System.String,System.String,System.String,AgrismartAPI.Domain.Users.UserRole,System.Nullable{System.TimeSpan})">
+            <param name="temporaryPasswordLifetime">
+            When set, <paramref name="passwordHash"/> is treated as an admin-issued temporary password: the
+            account is flagged to force a change, and the password stops working for login after this long.
+            </param>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Users.User.SetTemporaryPassword(System.String,System.TimeSpan)">
+            <summary>Sets an admin-issued temporary password: the account must change it before <paramref name="lifetime"/> elapses.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Users.User.CompletePasswordReset(System.String)">
+            <summary>The user sets their own password (first-login reset or a voluntary change) — no longer temporary.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Auth.BiometricChallengeStore">
+            <summary>In-memory store for biometric login challenges. Fine for a single-instance API;
+            swap for a distributed cache (Redis, etc.) if the API is scaled out horizontally.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Auth.BiometricChallengeStore.#ctor(Microsoft.Extensions.Caching.Memory.IMemoryCache)">
+            <summary>In-memory store for biometric login challenges. Fine for a single-instance API;
+            swap for a distributed cache (Redis, etc.) if the API is scaled out horizontally.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Auth.BiometricSignatureVerifier">
+            <summary>
+            Verifies ECDSA (P-256, SHA-256, DER-encoded signature) proofs produced by the mobile app's
+            biometric-gated key pair. This matches the native signature format produced by Android
+            Keystore ("SHA256withECDSA") and iOS Secure Enclave (ecdsaSignatureMessageX962SHA256).
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseCropHealthEngine">
+            <summary>
+            Real IDiagnosisEngine backed by Kindwise's crop.health API (https://crop.kindwise.com/docs), which
+            identifies crops together with the pests and diseases affecting them from a single photo.
+            Registered only when "Kindwise:ApiKey" is configured — see Infrastructure/DependencyInjection.cs.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseCropHealthEngine.#ctor(System.Net.Http.HttpClient,Microsoft.Extensions.Options.IOptions{AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseSettings})">
+            <summary>
+            Real IDiagnosisEngine backed by Kindwise's crop.health API (https://crop.kindwise.com/docs), which
+            identifies crops together with the pests and diseases affecting them from a single photo.
+            Registered only when "Kindwise:ApiKey" is configured — see Infrastructure/DependencyInjection.cs.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseIdentificationRequest">
+            <summary>Body for POST {BaseUrl}/api/v1/identification. latitude/longitude/similar_images are omitted from
+            the JSON entirely when not supplied, rather than sent as null/false — Kindwise's crop.health API rejects an
+            explicit "similar_images": false with a 400 ("Unknown modifier"); it only accepts the field when true.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseIdentificationRequest.#ctor(System.String[],System.Nullable{System.Boolean},System.Nullable{System.Double},System.Nullable{System.Double})">
+            <summary>Body for POST {BaseUrl}/api/v1/identification. latitude/longitude/similar_images are omitted from
+            the JSON entirely when not supplied, rather than sent as null/false — Kindwise's crop.health API rejects an
+            explicit "similar_images": false with a 400 ("Unknown modifier"); it only accepts the field when true.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseIdentificationResponse">
+            <summary>
+            Shapes for POST {BaseUrl}/api/v1/identification, mirrored from the official
+            kindwise-api-client (flowerchecker/kindwise-api-client, kindwise/async_api/crop_health.py + models.py).
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseSuggestion.Details">
+            <summary>Loose bag — the "details" query param controls which of these keys are populated
+            (common_names, description, treatment, severity, type, symptoms, ...). Kept as raw JSON
+            since Kindwise documents the shape but doesn't guarantee it, so parsing stays defensive.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseSettings">
+            <summary>Options for the Kindwise crop.health identification API (https://crop.kindwise.com/docs).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseSettings.ApiKey">
+            <summary>Api-Key issued by kindwise.com. When empty, DI falls back to MockDiagnosisEngine so local dev keeps working without an account.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Diagnosis.Kindwise.KindwiseSettings.Details">
+            <summary>"details" query param requested from the identification endpoint.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Diagnosis.MockDiagnosisEngine">
+            <summary>Canned results standing in for a real model, mirroring the Flutter app's MockDiagnosisService. Swap with a real IDiagnosisEngine to plug in inference.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Email.SendGridEmailSender">
+            <summary>Posts directly to SendGrid's v3 Mail Send API (<see cref="P:AgrismartAPI.Infrastructure.Email.SendGridSettings.BaseApiUrl"/>) rather than routing through the SendGrid SDK's own HTTP client.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Email.SendGridEmailSender.#ctor(System.Net.Http.HttpClient,Microsoft.Extensions.Options.IOptions{AgrismartAPI.Infrastructure.Email.SendGridSettings},Microsoft.Extensions.Logging.ILogger{AgrismartAPI.Infrastructure.Email.SendGridEmailSender})">
+            <summary>Posts directly to SendGrid's v3 Mail Send API (<see cref="P:AgrismartAPI.Infrastructure.Email.SendGridSettings.BaseApiUrl"/>) rather than routing through the SendGrid SDK's own HTTP client.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Harvest.GddHarvestPredictor">
+             <summary>
+             Growing-degree-day harvest predictor with an analog-year ensemble for the part of the season
+             that has not happened yet.
+            
+             The season is split into three segments:
+               1. planting -> yesterday        reanalysis (what actually happened)
+               2. today    -> today + 16 days  numerical weather forecast
+               3. beyond                       replay of the last N years' real temperatures
+            
+             Segment 3 is the interesting one. Rather than inventing a symmetric error bar, we re-run the
+             remaining thermal requirement against each of the last N years' actual weather. That yields N
+             plausible harvest dates; the 10th/50th/90th percentiles become the earliest / expected / latest
+             window. The spread is then a real statement about how variable this location's climate is, not
+             a guess.
+             </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Harvest.GddHarvestPredictor.#ctor(AgrismartAPI.Application.Abstractions.IWeatherProvider,Microsoft.Extensions.Options.IOptions{AgrismartAPI.Infrastructure.Harvest.OpenMeteoOptions},Microsoft.Extensions.Logging.ILogger{AgrismartAPI.Infrastructure.Harvest.GddHarvestPredictor})">
+             <summary>
+             Growing-degree-day harvest predictor with an analog-year ensemble for the part of the season
+             that has not happened yet.
+            
+             The season is split into three segments:
+               1. planting -> yesterday        reanalysis (what actually happened)
+               2. today    -> today + 16 days  numerical weather forecast
+               3. beyond                       replay of the last N years' real temperatures
+            
+             Segment 3 is the interesting one. Rather than inventing a symmetric error bar, we re-run the
+             remaining thermal requirement against each of the last N years' actual weather. That yields N
+             plausible harvest dates; the 10th/50th/90th percentiles become the earliest / expected / latest
+             window. The spread is then a real statement about how variable this location's climate is, not
+             a guess.
+             </summary>
+        </member>
+        <member name="F:AgrismartAPI.Infrastructure.Harvest.GddHarvestPredictor.ArchiveLagDays">
+            <summary>The reanalysis archive lags real time by a few days; stay behind it.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Infrastructure.Harvest.GddHarvestPredictor.MaxProjectionDays">
+            <summary>Give up rather than spin forever on a crop that will never mature here.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Harvest.GddHarvestPredictor.RunAnalogEnsemble(System.Collections.Generic.IReadOnlyDictionary{System.DateOnly,AgrismartAPI.Domain.Harvest.DailyTemperature},AgrismartAPI.Domain.Harvest.CropProfile,System.Double,System.DateOnly,System.Int32,System.Int32)">
+            <summary>
+            For each past year, start on the same calendar day as <paramref name="projectionStart"/> and
+            accumulate that year's real temperatures until the remaining GDD is met.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Harvest.GddHarvestPredictor.DailyGdd(System.Double,System.Double,System.Double,System.Double)">
+            <summary>
+            Modified ("Method B") growing degree days: both bounds are clamped into [Tbase, Tupper]
+            before averaging. This is what most extension services publish, and it avoids the classic
+            bug where a hot afternoon inflates development on a crop that has already stopped responding
+            to heat.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Harvest.OpenMeteoOptions.AnalogYears">
+            <summary>How many past years of daily temperatures to pull for the analog-year ensemble.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Harvest.OpenMeteoOptions.ForecastDays">
+            <summary>Days of NWP forecast to trust before falling back to climatology. Open-Meteo caps at 16.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Harvest.OpenMeteoOptions.ArchiveCacheHours">
+            <summary>Cache lifetime for the multi-year archive pull, in hours.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Harvest.OpenMeteoOptions.UseSyntheticProvider">
+            <summary>
+            Serve deterministic synthetic weather instead of calling Open-Meteo. For offline demos and
+            tests only. Also switched on by AGRISMART_OFFLINE=true.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Harvest.SyntheticWeatherProvider">
+             <summary>
+             Deterministic synthetic climate, for running the API with no outbound network: demos on a bad
+             connection, CI, and tests that must not depend on a third party being up. Enable with
+             "OpenMeteo:UseSyntheticProvider": true, or by setting the environment variable AGRISMART_OFFLINE=true.
+            
+             The signal is a seasonal sinusoid whose amplitude grows with latitude, plus a per-year anomaly and
+             a per-day wobble. Both are derived from a hash of the date, so the same location always produces the
+             same series -- which is what makes the analog-year ensemble meaningful rather than noise.
+            
+             This is NOT a climate model. Never point a real agronomic decision at it.
+             </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Harvest.SyntheticWeatherProvider.Hash(System.Int32,System.Int32,System.Int32)">
+            <summary>Small stable integer hash. Deterministic across runs and platforms.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Orders.OrderHoldExpiryService">
+            <summary>
+            Enforces the "unpaid orders are only held for 24 hours" policy (MONIME-INTEGRATION-README.md §2,
+            path 3): periodically cancels <see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.UnpaidHold"/> orders whose hold has lapsed
+            without payment.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Orders.OrderHoldExpiryService.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,Microsoft.Extensions.Logging.ILogger{AgrismartAPI.Infrastructure.Orders.OrderHoldExpiryService})">
+            <summary>
+            Enforces the "unpaid orders are only held for 24 hours" policy (MONIME-INTEGRATION-README.md §2,
+            path 3): periodically cancels <see cref="F:AgrismartAPI.Domain.Orders.PaymentMethod.UnpaidHold"/> orders whose hold has lapsed
+            without payment.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Payments.Monime.MonimeCheckoutClient">
+            <summary>
+            Talks to Monime's hosted checkout-session API (https://docs.monime.io/apis/versions/caph-2025-08-23).
+            Unwraps the {success, messages, result} envelope and throws <see cref="T:AgrismartAPI.Application.Common.MonimeApiException"/> on any
+            failure (Monime-rejected or network) — callers are responsible for persistence/auditing.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Payments.Monime.MonimeCheckoutClient.#ctor(System.Net.Http.HttpClient,Microsoft.Extensions.Options.IOptions{AgrismartAPI.Application.Common.MonimeSettings})">
+            <summary>
+            Talks to Monime's hosted checkout-session API (https://docs.monime.io/apis/versions/caph-2025-08-23).
+            Unwraps the {success, messages, result} envelope and throws <see cref="T:AgrismartAPI.Application.Common.MonimeApiException"/> on any
+            failure (Monime-rejected or network) — callers are responsible for persistence/auditing.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Payments.Monime.MonimePrice.Value">
+            <summary>Whole minor units (e.g. cents) — never a float.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Payments.Monime.MonimeEnvelope`1">
+            <summary>Every Monime response is wrapped in this envelope, success or error.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Infrastructure.Payments.Monime.MonimeCheckoutSessionResult.Status">
+            <summary>"pending" | "completed" | "cancelled" | "expired".</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Configurations.JsonValueConverters">
+            <summary>Stores a small value-object list (e.g. treatment steps) as a JSON column instead of a separate owned table.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.InitialCreate">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCategoriesSellersAndUserRoles">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCategoriesSellersAndUserRoles.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCategoriesSellersAndUserRoles.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCategoriesSellersAndUserRoles.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCart">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCart.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCart.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCart.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddBiometricCredentials">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddBiometricCredentials.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddBiometricCredentials.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddBiometricCredentials.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAuditLogs">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAuditLogs.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAuditLogs.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAuditLogs.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddTemporaryPasswordFields">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddTemporaryPasswordFields.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddTemporaryPasswordFields.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddTemporaryPasswordFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCheckoutAndPayments">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCheckoutAndPayments.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCheckoutAndPayments.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCheckoutAndPayments.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddPerSellerOrderReconciliation">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddPerSellerOrderReconciliation.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddPerSellerOrderReconciliation.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddPerSellerOrderReconciliation.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.RemovePaymentCodeFromCheckoutSessions">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.RemovePaymentCodeFromCheckoutSessions.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.RemovePaymentCodeFromCheckoutSessions.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.RemovePaymentCodeFromCheckoutSessions.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCropsAndHarvestPredictions">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCropsAndHarvestPredictions.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCropsAndHarvestPredictions.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddCropsAndHarvestPredictions.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddFertilizerCalculator">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddFertilizerCalculator.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddFertilizerCalculator.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddFertilizerCalculator.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Storage.LocalFileStorageService">
+            <summary>Saves uploads to wwwroot/uploads on local disk, served back out via static file middleware. Swap for a cloud-backed implementation (e.g. Azure Blob/S3) without touching callers.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Storage.LocalFileStorageService.#ctor(Microsoft.AspNetCore.Hosting.IWebHostEnvironment)">
+            <summary>Saves uploads to wwwroot/uploads on local disk, served back out via static file middleware. Swap for a cloud-backed implementation (e.g. Azure Blob/S3) without touching callers.</summary>
+        </member>
+        <member name="T:AgrismartAPI.OpenApi.FertilizerExamplesTransformer">
+            <summary>
+            Adds example requests and responses to every FertilizerController operation. The calculation
+            examples are produced by running the real calculator on the seed reference data, so the docs
+            never drift from actual behaviour.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.OpenApi.FertilizerExamplesTransformer.#ctor(Microsoft.Extensions.Options.IOptions{AgrismartAPI.Application.Fertilizer.FertilizerCalculatorOptions})">
+            <summary>
+            Adds example requests and responses to every FertilizerController operation. The calculation
+            examples are produced by running the real calculator on the seed reference data, so the docs
+            never drift from actual behaviour.
+            </summary>
+        </member>
+        <member name="T:Program">
+            <summary>Exposed so integration tests can host the API with WebApplicationFactory&lt;Program&gt;.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.KeyPattern_0">
+            <summary>Custom <see cref="T:System.Text.RegularExpressions.Regex"/>-derived type for the KeyPattern method.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.KeyPattern_0.Instance">
+            <summary>Cached, thread-safe singleton instance.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.KeyPattern_0.#ctor">
+            <summary>Initializes the instance.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.KeyPattern_0.RunnerFactory">
+            <summary>Provides a factory for creating <see cref="T:System.Text.RegularExpressions.RegexRunner"/> instances to be used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.KeyPattern_0.RunnerFactory.CreateInstance">
+            <summary>Creates an instance of a <see cref="T:System.Text.RegularExpressions.RegexRunner"/> used by methods on <see cref="T:System.Text.RegularExpressions.Regex"/>.</summary>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.KeyPattern_0.RunnerFactory.Runner">
+            <summary>Provides the runner that contains the custom logic implementing the specified regular expression.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.KeyPattern_0.RunnerFactory.Runner.Scan(System.ReadOnlySpan{System.Char})">
+            <summary>Scan the <paramref name="inputSpan"/> starting from base.runtextstart for the next match.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.KeyPattern_0.RunnerFactory.Runner.TryFindNextPossibleStartingPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Search <paramref name="inputSpan"/> starting from base.runtextpos for the next location a match could possibly start.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if a possible match was found; false if no more matches are possible.</returns>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.KeyPattern_0.RunnerFactory.Runner.TryMatchAtCurrentPosition(System.ReadOnlySpan{System.Char})">
+            <summary>Determine whether <paramref name="inputSpan"/> at base.runtextpos is a match for the regular expression.</summary>
+            <param name="inputSpan">The text being scanned by the regular expression.</param>
+            <returns>true if the regular expression matches at the current position; otherwise, false.</returns>
+        </member>
+        <member name="T:System.Text.RegularExpressions.Generated.Utilities">
+            <summary>Helper methods used by generated <see cref="T:System.Text.RegularExpressions.Regex"/>-derived implementations.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout">
+            <summary>Default timeout value set in <see cref="T:System.AppContext"/>, or <see cref="F:System.Text.RegularExpressions.Regex.InfiniteMatchTimeout"/> if none was set.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_hasTimeout">
+            <summary>Whether <see cref="F:System.Text.RegularExpressions.Generated.Utilities.s_defaultTimeout"/> is non-infinite.</summary>
+        </member>
+        <member name="M:System.Text.RegularExpressions.Generated.Utilities.StackPush(System.Int32[]@,System.Int32@,System.Int32,System.Int32)">
+            <summary>Pushes 2 values onto the backtracking stack.</summary>
+        </member>
+        <member name="F:System.Text.RegularExpressions.Generated.Utilities.s_asciiLettersLowerAndDigits">
+            <summary>Supports searching for characters in or not in "0123456789abcdefghijklmnopqrstuvwxyz".</summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OpenApi.Generated.DocumentationCommentIdHelper.CreateDocumentationId(System.Type)">
+            <summary>
+            Generates a documentation comment ID for a type.
+            Example: T:Namespace.Outer+Inner`1 becomes T:Namespace.Outer.Inner`1
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OpenApi.Generated.DocumentationCommentIdHelper.CreateDocumentationId(System.Reflection.PropertyInfo)">
+            <summary>
+            Generates a documentation comment ID for a property.
+            Example: P:Namespace.ContainingType.PropertyName or for an indexer P:Namespace.ContainingType.Item(System.Int32)
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OpenApi.Generated.DocumentationCommentIdHelper.CreateDocumentationId(System.Type,System.String)">
+            <summary>
+            Generates a documentation comment ID for a property given its container type and property name.
+            Example: P:Namespace.ContainingType.PropertyName
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OpenApi.Generated.DocumentationCommentIdHelper.CreateDocumentationId(System.Reflection.MethodInfo)">
+            <summary>
+            Generates a documentation comment ID for a method (or constructor).
+            For example:
+              M:Namespace.ContainingType.MethodName(ParamType1,ParamType2)~ReturnType
+              M:Namespace.ContainingType.#ctor(ParamType)
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OpenApi.Generated.DocumentationCommentIdHelper.GetTypeDocId(System.Type,System.Boolean,System.Boolean)">
+            <summary>
+            Generates a documentation ID string for a type.
+            This method handles nested types (replacing '+' with '.'),
+            generic types, arrays, pointers, by-ref types, and generic parameters.
+            The <paramref name="includeGenericArguments"/> flag controls whether
+            constructed generic type arguments are emitted, while <paramref name="omitGenericArity"/>
+            controls whether the generic arity marker (e.g. "`1") is appended.
+            </summary>
+        </member>
+        <member name="M:Microsoft.AspNetCore.OpenApi.Generated.DocumentationCommentIdHelper.NormalizeDocId(System.String)">
+            <summary>
+            Normalizes a documentation comment ID to match the compiler-style format.
+            Strips the return type suffix for ordinary methods but retains it for conversion operators.
+            </summary>
+            <param name="docId">The documentation comment ID to normalize.</param>
+            <returns>The normalized documentation comment ID.</returns>
+        </member>
+    </members>
+</doc>

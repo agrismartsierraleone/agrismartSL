@@ -439,3 +439,5 @@ C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\refint\Agr
 C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\AgrismartAPI.pdb
 C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\AgrismartAPI.genruntimeconfig.cache
 C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\ref\AgrismartAPI.dll
+C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\bin\Debug\net10.0\AgrismartAPI.xml
+C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\AgrismartAPI.xml

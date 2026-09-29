@@ -1,6 +1,7 @@
 using AgrismartAPI.Domain.Audit;
 using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Checkout;
+using AgrismartAPI.Domain.Fertilizer;
 using AgrismartAPI.Domain.Harvest;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
@@ -29,6 +30,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CheckoutAuditLog> CheckoutAuditLogs => Set<CheckoutAuditLog>();
     public DbSet<CropProfile> Crops => Set<CropProfile>();
     public DbSet<HarvestPrediction> HarvestPredictions => Set<HarvestPrediction>();
+    public DbSet<FertilizerCropProfile> FertilizerCrops => Set<FertilizerCropProfile>();
+    public DbSet<FertilizerProduct> FertilizerProducts => Set<FertilizerProduct>();
+    public DbSet<FertilizerRecommendation> FertilizerRecommendations => Set<FertilizerRecommendation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

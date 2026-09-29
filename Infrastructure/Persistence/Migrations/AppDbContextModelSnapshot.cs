@@ -204,6 +204,179 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                     b.ToTable("CheckoutSessions", (string)null);
                 });
 
+            modelBuilder.Entity("AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsPerennial")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("LocalName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("MaxRealisticYieldTPerHa")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("NitrogenKgPerHa")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<double>("PhosphateKgPerHa")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("PlantsPerHectare")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("PotashKgPerHa")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("ReferenceYieldTPerHa")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Schedule")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Schedule");
+
+                    b.Property<string>("YieldBasis")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("FertilizerCrops", (string)null);
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Fertilizer.FertilizerProduct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("BagSizeKg")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("NitrogenPercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<double>("PhosphatePercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("PotashPercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<decimal?>("PricePerBag")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<double?>("SulphurPercent")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<double?>("ZincPercent")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("FertilizerProducts", (string)null);
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Fertilizer.FertilizerRecommendation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("AreaHectares")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CropId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CropName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("InputsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("PlotLabel")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<decimal>("TotalEstimatedCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CropId");
+
+                    b.HasIndex("UserId", "CreatedAt");
+
+                    b.ToTable("FertilizerRecommendations", (string)null);
+                });
+
             modelBuilder.Entity("AgrismartAPI.Domain.Harvest.CropProfile", b =>
                 {
                     b.Property<Guid>("Id")

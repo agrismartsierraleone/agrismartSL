@@ -1,8 +1,10 @@
+using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Application.Audit;
 using AgrismartAPI.Application.Auth;
 using AgrismartAPI.Application.Carts;
 using AgrismartAPI.Application.Checkout;
 using AgrismartAPI.Application.Diagnoses;
+using AgrismartAPI.Application.Fertilizer;
 using AgrismartAPI.Application.Harvest;
 using AgrismartAPI.Application.Market;
 using AgrismartAPI.Application.Orders;
@@ -31,6 +33,8 @@ public static class DependencyInjection
         services.AddScoped<UserNotificationService>();
         services.AddScoped<CheckoutAppService>();
         services.AddScoped<HarvestAppService>();
+        services.AddScoped<FertilizerAppService>();
+        services.AddScoped<IFertilizerCalculatorService, FertilizerCalculatorService>();
 
         return services;
     }

@@ -3,6 +3,7 @@ using AgrismartAPI.Domain.Harvest;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Tutorials;
 using AgrismartAPI.Domain.Users;
+using AgrismartAPI.Infrastructure.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgrismartAPI.Infrastructure.Persistence;
@@ -134,6 +135,17 @@ public static class AppDbContextSeeder
                 CropProfile.Create("potato",       "Potato",          7.0, 30.0, 1500, 110, rootStages),
                 CropProfile.Create("tomato",       "Tomato",         10.0, 30.0, 1400,  95, fruitStages),
                 CropProfile.Create("pepper-chili", "Chili pepper",   12.0, 32.0, 1600, 105, fruitStages));
+        }
+
+        // Fertilizer reference data — see Seed/FertilizerReferenceData.cs (agronomist-reviewable).
+        if (!await dbContext.FertilizerCrops.AnyAsync(cancellationToken))
+        {
+            dbContext.FertilizerCrops.AddRange(FertilizerReferenceData.Crops());
+        }
+
+        if (!await dbContext.FertilizerProducts.AnyAsync(cancellationToken))
+        {
+            dbContext.FertilizerProducts.AddRange(FertilizerReferenceData.Products());
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

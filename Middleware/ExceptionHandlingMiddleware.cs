@@ -31,6 +31,12 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
 
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int)statusCode;
+            if (exception is ValidationException { Errors: not null } validationException)
+            {
+                await context.Response.WriteAsJsonAsync(new { message = exception.Message, errors = validationException.Errors });
+                return;
+            }
+
             await context.Response.WriteAsJsonAsync(new { message = exception.Message });
         }
     }

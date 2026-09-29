@@ -1,8 +1,10 @@
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Application.Common;
+using AgrismartAPI.Application.Fertilizer;
 using AgrismartAPI.Domain.Audit;
 using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Checkout;
+using AgrismartAPI.Domain.Fertilizer;
 using AgrismartAPI.Domain.Harvest;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
@@ -39,6 +41,7 @@ public static class DependencyInjection
         services.Configure<AppLinksSettings>(configuration.GetSection(AppLinksSettings.SectionName));
         services.Configure<MonimeSettings>(configuration.GetSection(MonimeSettings.SectionName));
         services.Configure<OpenMeteoOptions>(configuration.GetSection(OpenMeteoOptions.SectionName));
+        services.Configure<FertilizerCalculatorOptions>(configuration.GetSection(FertilizerCalculatorOptions.SectionName));
 
         services.AddHttpContextAccessor();
         services.AddMemoryCache();
@@ -57,6 +60,9 @@ public static class DependencyInjection
         services.AddScoped<ICheckoutAuditLogRepository, CheckoutAuditLogRepository>();
         services.AddScoped<ICropRepository, CropRepository>();
         services.AddScoped<IHarvestPredictionRepository, HarvestPredictionRepository>();
+        services.AddScoped<IFertilizerCropRepository, FertilizerCropRepository>();
+        services.AddScoped<IFertilizerProductRepository, FertilizerProductRepository>();
+        services.AddScoped<IFertilizerRecommendationRepository, FertilizerRecommendationRepository>();
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();

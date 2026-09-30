@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using AgrismartAPI.Application;
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Infrastructure;
+using AgrismartAPI.Infrastructure.Assistant;
 using AgrismartAPI.Infrastructure.Auth;
 using AgrismartAPI.Infrastructure.Persistence;
 using AgrismartAPI.Middleware;
@@ -29,6 +30,8 @@ builder.Services
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+// AI assistant: "assistant" rate-limit policy always; services only when Features:AiAssistant is true.
+builder.Services.AddAssistant(builder.Configuration);
 
 // Video uploads can exceed the default 128 MB multipart limit.
 builder.Services.Configure<FormOptions>(options =>
@@ -121,6 +124,8 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+// No global limiter: only endpoints with [EnableRateLimiting] (the assistant) are limited.
+app.UseRateLimiter();
 app.MapControllers();
 app.Run();
 

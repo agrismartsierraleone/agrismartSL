@@ -441,3 +441,7 @@ C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\AgrismartA
 C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\ref\AgrismartAPI.dll
 C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\bin\Debug\net10.0\AgrismartAPI.xml
 C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\obj\Debug\net10.0\AgrismartAPI.xml
+C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\bin\Debug\net10.0\Anthropic.dll
+C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\bin\Debug\net10.0\Microsoft.Extensions.AI.dll
+C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\bin\Debug\net10.0\Microsoft.Extensions.AI.Abstractions.dll
+C:\Users\USER\Desktop\project\AgriSmart\agrismartSL\bin\Debug\net10.0\System.Numerics.Tensors.dll

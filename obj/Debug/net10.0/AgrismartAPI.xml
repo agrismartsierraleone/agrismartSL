@@ -19,6 +19,18 @@
             produced by the private key matching <paramref name="publicKeyBase64"/>.
             </summary>
         </member>
+        <member name="T:AgrismartAPI.Application.Abstractions.IConversationStore">
+            <summary>Persistence for AI assistant conversations, messages and content reports.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IConversationStore.GetOwnedConversationAsync(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>The conversation if it exists and belongs to <paramref name="userId"/>; otherwise null.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IConversationStore.GetRecentMessagesAsync(System.Guid,System.Int32,System.Threading.CancellationToken)">
+            <summary>The newest <paramref name="take"/> messages, returned oldest first.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Abstractions.IConversationStore.SaveTurnAsync(AgrismartAPI.Domain.Assistant.AssistantConversation,System.Boolean,AgrismartAPI.Domain.Assistant.AssistantMessage,AgrismartAPI.Domain.Assistant.AssistantMessage,System.Threading.CancellationToken)">
+            <summary>Saves a new or existing conversation together with the new turn in one transaction.</summary>
+        </member>
         <member name="T:AgrismartAPI.Application.Abstractions.IDiagnosisEngine">
             <summary>Pluggable image-analysis backend. Swap the registered implementation to move from a mock to a real model.</summary>
         </member>
@@ -83,6 +95,111 @@
         </member>
         <member name="M:AgrismartAPI.Application.Abstractions.IWeatherProvider.GetRecentAndForecastAsync(System.Double,System.Double,System.Int32,System.Int32,System.Threading.CancellationToken)">
             <summary>Recent past (filling the archive's few-day lag) plus the NWP forecast.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Assistant.AssistantChatRequest">
+            <summary>A farmer's question.</summary>
+            <param name="ConversationId">Continue this conversation; omit or null to start a new one.</param>
+            <param name="Message">The question as text (required, at most 1000 characters). Voice is transcribed on the phone.</param>
+            <remarks>
+            Kept as a flat object so optional fields (e.g. an uploaded crop-photo id for pest/disease questions)
+            can be added later without breaking existing clients. Images are not supported yet.
+            </remarks>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantChatRequest.#ctor(System.Nullable{System.Guid},System.String)">
+            <summary>A farmer's question.</summary>
+            <param name="ConversationId">Continue this conversation; omit or null to start a new one.</param>
+            <param name="Message">The question as text (required, at most 1000 characters). Voice is transcribed on the phone.</param>
+            <remarks>
+            Kept as a flat object so optional fields (e.g. an uploaded crop-photo id for pest/disease questions)
+            can be added later without breaking existing clients. Images are not supported yet.
+            </remarks>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantChatRequest.ConversationId">
+            <summary>Continue this conversation; omit or null to start a new one.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantChatRequest.Message">
+            <summary>The question as text (required, at most 1000 characters). Voice is transcribed on the phone.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Assistant.AssistantChatResponse">
+            <param name="ConversationId">Send this back to continue the conversation.</param>
+            <param name="MessageId">Id of the assistant's reply; use it to report the reply.</param>
+            <param name="Reply">The assistant's answer.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantChatResponse.#ctor(System.Guid,System.Guid,System.String)">
+            <param name="ConversationId">Send this back to continue the conversation.</param>
+            <param name="MessageId">Id of the assistant's reply; use it to report the reply.</param>
+            <param name="Reply">The assistant's answer.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantChatResponse.ConversationId">
+            <summary>Send this back to continue the conversation.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantChatResponse.MessageId">
+            <summary>Id of the assistant's reply; use it to report the reply.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantChatResponse.Reply">
+            <summary>The assistant's answer.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Assistant.AssistantReportRequest">
+            <summary>Flags an AI-generated reply as wrong, harmful or inappropriate.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantReportRequest.#ctor(System.Guid,System.Guid,System.String)">
+            <summary>Flags an AI-generated reply as wrong, harmful or inappropriate.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Assistant.AssistantOptions">
+            <summary>
+            "Assistant" configuration section. <see cref="P:AgrismartAPI.Application.Assistant.AssistantOptions.ApiKey"/> must come from user-secrets or the
+            Assistant__ApiKey environment variable, never from a committed appsettings file.
+            </summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Assistant.AssistantOptions.FeatureFlagKey">
+            <summary>Feature flag key: "Features": { "AiAssistant": true }.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Assistant.AssistantOptions.RateLimitPolicy">
+            <summary>Rate-limit policy applied to the assistant endpoints only.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantOptions.Provider">
+            <summary>Only "Anthropic" is implemented; the rest of the feature only depends on IChatClient.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantOptions.MaxOutputTokens">
+            <summary>Cap on the model's output per request, including its internal reasoning.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantOptions.MaxHistoryMessages">
+            <summary>How many stored messages of a conversation are sent back to the model.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantOptions.MaxToolIterations">
+            <summary>Upper bound on tool-call round-trips per question.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Assistant.AssistantOptions.DailyRequestLimit">
+            <summary>Chat/report requests allowed per farmer per day.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantPrompts.WithToday(System.DateOnly)">
+            <summary>Appended per request so date-relative questions ("when should I plant?") are grounded.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Assistant.AssistantUnavailableException">
+            <summary>Thrown when the AI provider fails; the controller turns it into a 503.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantUnavailableException.#ctor(System.String,System.Exception)">
+            <summary>Thrown when the AI provider fails; the controller turns it into a 503.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Assistant.AssistantTools">
+            <summary>
+            The functions the AI model may call. Each one is a thin adapter over EXISTING services and
+            repositories. The farmer is always the authenticated caller (<see cref="T:AgrismartAPI.Application.Abstractions.ICurrentUserService"/>):
+            no tool accepts a user/farmer id, so the model cannot read another farmer's data.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantTools.#ctor(AgrismartAPI.Application.Abstractions.ICurrentUserService,AgrismartAPI.Domain.Assistant.IFarmRepository,AgrismartAPI.Domain.Harvest.IHarvestPredictionRepository,AgrismartAPI.Domain.Fertilizer.IFertilizerRecommendationRepository,AgrismartAPI.Domain.Scans.IScanHistoryRepository,AgrismartAPI.Application.Abstractions.IWeatherProvider,AgrismartAPI.Application.Fertilizer.FertilizerAppService,AgrismartAPI.Domain.Harvest.ICropRepository,AgrismartAPI.Application.Abstractions.IHarvestPredictor,Microsoft.Extensions.Logging.ILogger{AgrismartAPI.Application.Assistant.AssistantTools})">
+            <summary>
+            The functions the AI model may call. Each one is a thin adapter over EXISTING services and
+            repositories. The farmer is always the authenticated caller (<see cref="T:AgrismartAPI.Application.Abstractions.ICurrentUserService"/>):
+            no tool accepts a user/farmer id, so the model cannot read another farmer's data.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantTools.ResolveLocationAsync(System.Nullable{System.Double},System.Nullable{System.Double},System.Threading.CancellationToken)">
+            <summary>Explicit coordinates win; then the first farm with coordinates; then the latest harvest-prediction location.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Assistant.AssistantTools.MatchesCrop(System.String,System.String)">
+            <summary>The harvest and fertilizer catalogues use slightly different keys (e.g. "rice" vs "rice-lowland").</summary>
         </member>
         <member name="T:AgrismartAPI.Application.Audit.AuditLogAppService">
             <summary>Records and reads the admin-only activity trail (account creation, credential changes, role changes, etc).</summary>
@@ -329,6 +446,91 @@
         </member>
         <member name="M:AgrismartAPI.Application.Common.UploadedFile.#ctor(System.IO.Stream,System.String,System.String)">
             <summary>Framework-agnostic wrapper around an incoming file upload, so the Application layer isn't coupled to ASP.NET Core's IFormFile.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Farms.FarmCropRequest">
+            <summary>A crop grown on the farm.</summary>
+            <param name="CropId">Crop key from GET /crops or GET /fertilizer/crops, e.g. "cassava" or "rice-lowland".</param>
+            <param name="PlantingDate">When it was planted (yyyy-MM-dd). Optional.</param>
+            <param name="PlotSize">Size of the plot for this crop, in <paramref name="AreaUnit"/>. Optional.</param>
+            <param name="AreaUnit">hectare (default), acre or squareMeter.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.Farms.FarmCropRequest.#ctor(System.String,System.Nullable{System.DateOnly},System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.AreaUnit)">
+            <summary>A crop grown on the farm.</summary>
+            <param name="CropId">Crop key from GET /crops or GET /fertilizer/crops, e.g. "cassava" or "rice-lowland".</param>
+            <param name="PlantingDate">When it was planted (yyyy-MM-dd). Optional.</param>
+            <param name="PlotSize">Size of the plot for this crop, in <paramref name="AreaUnit"/>. Optional.</param>
+            <param name="AreaUnit">hectare (default), acre or squareMeter.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmCropRequest.CropId">
+            <summary>Crop key from GET /crops or GET /fertilizer/crops, e.g. "cassava" or "rice-lowland".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmCropRequest.PlantingDate">
+            <summary>When it was planted (yyyy-MM-dd). Optional.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmCropRequest.PlotSize">
+            <summary>Size of the plot for this crop, in <paramref name="AreaUnit"/>. Optional.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmCropRequest.AreaUnit">
+            <summary>hectare (default), acre or squareMeter.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Farms.FarmRequest">
+            <summary>A farm to add for the signed-in farmer.</summary>
+            <param name="Name">Farm name, e.g. "River farm" (required, up to 100 characters).</param>
+            <param name="District">Sierra Leone district, e.g. "Bo" or "Kenema". Optional.</param>
+            <param name="Latitude">Optional; give together with longitude. Used for weather and harvest prediction.</param>
+            <param name="Longitude">Optional; give together with latitude.</param>
+            <param name="Area">Total farm size in <paramref name="AreaUnit"/>. Optional.</param>
+            <param name="AreaUnit">hectare (default), acre or squareMeter.</param>
+            <param name="Crops">Crops grown on the farm. Optional.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.Farms.FarmRequest.#ctor(System.String,System.String,System.Nullable{System.Double},System.Nullable{System.Double},System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.AreaUnit,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Farms.FarmCropRequest})">
+            <summary>A farm to add for the signed-in farmer.</summary>
+            <param name="Name">Farm name, e.g. "River farm" (required, up to 100 characters).</param>
+            <param name="District">Sierra Leone district, e.g. "Bo" or "Kenema". Optional.</param>
+            <param name="Latitude">Optional; give together with longitude. Used for weather and harvest prediction.</param>
+            <param name="Longitude">Optional; give together with latitude.</param>
+            <param name="Area">Total farm size in <paramref name="AreaUnit"/>. Optional.</param>
+            <param name="AreaUnit">hectare (default), acre or squareMeter.</param>
+            <param name="Crops">Crops grown on the farm. Optional.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmRequest.Name">
+            <summary>Farm name, e.g. "River farm" (required, up to 100 characters).</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmRequest.District">
+            <summary>Sierra Leone district, e.g. "Bo" or "Kenema". Optional.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmRequest.Latitude">
+            <summary>Optional; give together with longitude. Used for weather and harvest prediction.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmRequest.Longitude">
+            <summary>Optional; give together with latitude.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmRequest.Area">
+            <summary>Total farm size in <paramref name="AreaUnit"/>. Optional.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmRequest.AreaUnit">
+            <summary>hectare (default), acre or squareMeter.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.Farms.FarmRequest.Crops">
+            <summary>Crops grown on the farm. Optional.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Farms.FarmRequestValidator">
+            <summary>Field-level validation for <see cref="T:AgrismartAPI.Application.Farms.FarmRequest"/>. Pure: the caller supplies the known crop ids.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.Farms.FarmRequestValidator.Districts">
+            <summary>The 16 districts of Sierra Leone (2017 boundaries).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.Farms.FarmRequestValidator.ValidFarm">
+            <summary>Validated, normalized values ready for <c>Farm.Create</c> / <c>Farm.AddCrop</c>.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Farms.FarmRequestValidator.ValidFarm.#ctor(System.String,System.String,System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{System.ValueTuple{System.String,System.Nullable{System.DateOnly},System.Nullable{System.Double}}})">
+            <summary>Validated, normalized values ready for <c>Farm.Create</c> / <c>Farm.AddCrop</c>.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Farms.FarmRequestValidator.Validate(AgrismartAPI.Application.Farms.FarmRequest,System.Collections.Generic.IReadOnlySet{System.String},System.Collections.Generic.Dictionary{System.String,System.String[]}@)">
+            <summary>Returns the normalized farm, or null with <paramref name="errors"/> filled (keys are camelCase field paths).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.Farms.FarmRequestValidator.ToHectares(System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.AreaUnit,System.String,System.String,System.Collections.Generic.Dictionary{System.String,System.String[]})">
+            <summary>Same units as the fertilizer calculator, minus plotDimensions.</summary>
         </member>
         <member name="M:AgrismartAPI.Application.Fertilizer.AreaConverter.ToHectares(System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.AreaUnit,System.Nullable{System.Double},System.Nullable{System.Double})">
             <summary>Converts a validated area input to hectares.</summary>
@@ -737,6 +939,47 @@
         <member name="M:AgrismartAPI.Application.Users.UserNotificationService.AccessLinksHtml(AgrismartAPI.Domain.Users.UserRole)">
             <summary>Sellers/Admins use the web admin app (login link); Buyers use the mobile app (store links).</summary>
         </member>
+        <member name="T:AgrismartAPI.Controllers.AssistantController">
+            <summary>
+            "AgriSmart AI Assistant" feature: farmers ask farming questions in text and get answers personalized
+            with their farm data, weather, fertilizer calculator and harvest prediction. Controlled by the
+            "Features:AiAssistant" flag; when it is off, chat/report return 404 and status returns enabled=false.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AssistantController.#ctor(Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Logging.ILogger{AgrismartAPI.Controllers.AssistantController})">
+            <summary>
+            "AgriSmart AI Assistant" feature: farmers ask farming questions in text and get answers personalized
+            with their farm data, weather, fertilizer calculator and harvest prediction. Controlled by the
+            "Features:AiAssistant" flag; when it is off, chat/report return 404 and status returns enabled=false.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AssistantController.GetStatus">
+            <summary>Whether the assistant is switched on.</summary>
+            <response code="200">{ "enabled": true } or { "enabled": false }.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AssistantController.Chat(AgrismartAPI.Application.Assistant.AssistantChatRequest,AgrismartAPI.Application.Assistant.AssistantService,System.Threading.CancellationToken)">
+            <summary>Asks the assistant a question.</summary>
+            <remarks>Send conversationId: null to start a new conversation, or the id from a previous reply to continue it.</remarks>
+            <response code="200">The assistant's reply.</response>
+            <response code="400">message missing or longer than 1000 characters.</response>
+            <response code="401">Not signed in.</response>
+            <response code="404">Assistant disabled, or the conversation does not exist or belongs to someone else.</response>
+            <response code="429">Daily assistant limit reached.</response>
+            <response code="503">The AI provider is unavailable.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.AssistantController.Report(AgrismartAPI.Application.Assistant.AssistantReportRequest,AgrismartAPI.Application.Assistant.AssistantService,System.Threading.CancellationToken)">
+            <summary>Reports an AI-generated reply as wrong, harmful or inappropriate.</summary>
+            <response code="204">Report saved.</response>
+            <response code="400">reason missing or too long.</response>
+            <response code="401">Not signed in.</response>
+            <response code="404">Assistant disabled, or the message was not found in one of your conversations.</response>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.AssistantEnabledAttribute">
+            <summary>
+            Returns 404 when "Features:AiAssistant" is false. Runs as a resource filter, i.e. before model binding
+            and [FromServices] resolution, so the unregistered assistant services are never requested.
+            </summary>
+        </member>
         <member name="T:AgrismartAPI.Controllers.AuditLogsController">
             <summary>Admin-only activity trail: account creation, credential changes, role changes, seller changes, logins.</summary>
         </member>
@@ -824,6 +1067,62 @@
         </member>
         <member name="M:AgrismartAPI.Controllers.CropsController.#ctor(AgrismartAPI.Application.Harvest.HarvestAppService)">
             <summary>Crop catalog backing the "Crops and harvest prediction" feature — see also HarvestPredictionsController.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.FarmsController">
+            <summary>
+            "My farms": after signing in, a farmer adds, edits and deletes their farms (location, size and crops) so
+            the AI assistant can personalize its answers. Only the caller's own farms are ever returned or changed.
+            </summary>
+            <remarks>
+            Uses only services the app already registers (DbContext, current user, crop catalogues), so no existing
+            file needed to change for this endpoint.
+            </remarks>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmsController.#ctor(AgrismartAPI.Infrastructure.Persistence.AppDbContext,AgrismartAPI.Application.Abstractions.ICurrentUserService,AgrismartAPI.Domain.Harvest.ICropRepository,AgrismartAPI.Domain.Fertilizer.IFertilizerCropRepository)">
+            <summary>
+            "My farms": after signing in, a farmer adds, edits and deletes their farms (location, size and crops) so
+            the AI assistant can personalize its answers. Only the caller's own farms are ever returned or changed.
+            </summary>
+            <remarks>
+            Uses only services the app already registers (DbContext, current user, crop catalogues), so no existing
+            file needed to change for this endpoint.
+            </remarks>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmsController.AddFarm(AgrismartAPI.Application.Farms.FarmRequest,System.Threading.CancellationToken)">
+            <summary>Adds a farm for the signed-in farmer, optionally with its crops.</summary>
+            <remarks>
+            Area and plot sizes can be given in hectare (default), acre or squareMeter; they are stored and returned
+            in hectares. district must be one of Sierra Leone's 16 districts (any capitalisation).
+            </remarks>
+            <response code="201">Created; returns the farm.</response>
+            <response code="400">Invalid values, with field-level errors.</response>
+            <response code="401">Not signed in.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmsController.GetMyFarms(System.Threading.CancellationToken)">
+            <summary>Lists the signed-in farmer's farms with their crops, oldest first.</summary>
+            <response code="200">Your farms.</response>
+            <response code="401">Not signed in.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmsController.EditFarm(System.Guid,AgrismartAPI.Application.Farms.FarmRequest,System.Threading.CancellationToken)">
+            <summary>Edits one of the signed-in farmer's farms.</summary>
+            <remarks>
+            Same body and rules as POST /farms; name, district, location and area are replaced (omitted optional
+            fields are cleared). crops: omit or send null to keep the current crops; send a list (even []) to replace them.
+            </remarks>
+            <response code="200">Updated; returns the farm.</response>
+            <response code="400">Invalid values, with field-level errors.</response>
+            <response code="401">Not signed in.</response>
+            <response code="404">Not found, or it belongs to another farmer.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmsController.DeleteFarm(System.Guid,System.Threading.CancellationToken)">
+            <summary>Deletes one of the signed-in farmer's farms and its crops.</summary>
+            <remarks>Farm records linked to the farm are kept, with their farm link cleared.</remarks>
+            <response code="204">Deleted.</response>
+            <response code="401">Not signed in.</response>
+            <response code="404">Not found, or it belongs to another farmer.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmsController.GetOwnedFarmAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>Tracked, with crops. Another farmer's farm is reported as not found so ids are not leaked.</summary>
         </member>
         <member name="T:AgrismartAPI.Controllers.FertilizerController">
             <summary>
@@ -975,6 +1274,48 @@
         </member>
         <member name="M:AgrismartAPI.Controllers.UsersController.Delete(System.Guid,System.Threading.CancellationToken)">
             <summary>Admin-only: permanently deletes a user account. Notifies the user by email.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Assistant.AssistantConversation">
+            <summary>One AI assistant chat thread, owned by the farmer who started it.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Assistant.AssistantMessage">
+            <summary>
+            A single turn in an <see cref="T:AgrismartAPI.Domain.Assistant.AssistantConversation"/>. Only the visible text is stored; tool calls
+            are re-run on demand so stored history never goes stale against the farmer's latest data.
+            </summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.AssistantMessage.Model">
+            <summary>Model id that produced an assistant message. Null for user messages.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.AssistantMessage.InputTokens">
+            <summary>Token usage for the whole request that produced an assistant message (including tool round-trips).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Assistant.AssistantMessageReport">
+            <summary>A farmer flagging an AI-generated reply as wrong or inappropriate (Google Play AI-content policy).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Assistant.Farm">
+            <summary>A farmer's farm: where it is and how big it is. Crops grown on it are <see cref="T:AgrismartAPI.Domain.Assistant.FarmCrop"/>s.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.Farm.District">
+            <summary>Sierra Leone district, e.g. "Bo" or "Kenema".</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Assistant.FarmCrop">
+            <summary>A crop planted on a <see cref="T:AgrismartAPI.Domain.Assistant.Farm"/>.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.FarmCrop.CropId">
+            <summary>Crop key, e.g. "cassava" or "rice-lowland".</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Assistant.FarmRecord">
+            <summary>Something that happened on the farm: fertilizer applied, a harvest weighed, a problem seen.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.FarmRecord.Unit">
+            <summary>Unit for <see cref="P:AgrismartAPI.Domain.Assistant.FarmRecord.Quantity"/>, e.g. "kg", "bags", "bushels".</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Assistant.IFarmRepository.GetFarmsForUserAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>The farmer's farms with their crops, oldest first.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Assistant.IFarmRepository.GetRecordsForUserAsync(System.Guid,System.Int32,System.Threading.CancellationToken)">
+            <summary>Newest first.</summary>
         </member>
         <member name="T:AgrismartAPI.Domain.Checkout.CheckoutAuditLog">
             <summary>One row per Monime create-session attempt (success or failure) — see MONIME-INTEGRATION-README.md §10.</summary>
@@ -1306,6 +1647,27 @@
         <member name="M:AgrismartAPI.Domain.Users.User.CompletePasswordReset(System.String)">
             <summary>The user sets their own password (first-login reset or a voluntary change) — no longer temporary.</summary>
         </member>
+        <member name="M:AgrismartAPI.Infrastructure.Assistant.AssistantServiceCollectionExtensions.AddAssistant(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration)">
+            <summary>
+            Registers the AI assistant. The "assistant" rate-limit policy is always registered (the controller
+            references it); everything else only when "Features:AiAssistant" is true.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Assistant.AssistantServiceCollectionExtensions.CreateProviderClient(AgrismartAPI.Application.Assistant.AssistantOptions,Microsoft.Extensions.Logging.ILogger)">
+            <summary>The only provider-specific code. Swap providers by adding a case that returns another IChatClient.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Assistant.UnconfiguredChatClient">
+            <summary>
+            Stands in when no API key (or an unsupported provider) is configured, so the app still starts and
+            the assistant fails per request with a 503 instead of breaking dependency injection.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Assistant.UnconfiguredChatClient.#ctor(System.String)">
+            <summary>
+            Stands in when no API key (or an unsupported provider) is configured, so the app still starts and
+            the assistant fails per request with a 503 instead of breaking dependency injection.
+            </summary>
+        </member>
         <member name="T:AgrismartAPI.Infrastructure.Auth.BiometricChallengeStore">
             <summary>In-memory store for biometric login challenges. Fine for a single-instance API;
             swap for a distributed cache (Redis, etc.) if the API is scaled out horizontally.</summary>
@@ -1629,6 +1991,18 @@
             <inheritdoc />
         </member>
         <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddFertilizerCalculator.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAiAssistant">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAiAssistant.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAiAssistant.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAiAssistant.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:AgrismartAPI.Infrastructure.Storage.LocalFileStorageService">

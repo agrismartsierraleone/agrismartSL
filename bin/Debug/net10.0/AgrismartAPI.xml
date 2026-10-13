@@ -887,6 +887,416 @@
         <member name="M:AgrismartAPI.Application.Harvest.HarvestPredictionRequest.#ctor(System.String,System.Double,System.Double,System.DateOnly,System.Boolean,System.Nullable{System.Double})">
             <summary>Crop key, latitude/longitude and planting date needed to run a harvest prediction.</summary>
         </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.PlannedActivity">
+            <summary>A task the crop calendar suggests, before it is saved as a <see cref="T:AgrismartAPI.Domain.Farms.FarmActivity"/>.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.PlannedActivity.#ctor(AgrismartAPI.Domain.Farms.FarmActivityType,System.String,System.String,System.DateOnly)">
+            <summary>A task the crop calendar suggests, before it is saved as a <see cref="T:AgrismartAPI.Domain.Farms.FarmActivity"/>.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CropCalendar">
+            <summary>
+            Pure date arithmetic behind the crop cards and the calendar strip: expected harvest, growth progress,
+            growth stage, calendar stage windows and the tasks generated for a new crop. "today" is always passed in.
+            </summary>
+            <remarks>
+            Windows are rules of thumb for Sierra Leone smallholder crops (land prep ~3 weeks before planting, weeding from
+            week 2, pest scouting from week 3, harvest window of 2 weeks); fertilizer timing comes from the fertilizer
+            calculator's split schedule for the crop.
+            </remarks>
+        </member>
+        <member name="F:AgrismartAPI.Application.MyFarm.CropCalendar.StageDefinitions">
+            <summary>The six stages of the calendar strip, in order.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropCalendar.ExpectedHarvest(AgrismartAPI.Domain.Assistant.FarmCrop,AgrismartAPI.Application.MyFarm.CropInfo)">
+            <summary>The farmer's date if set, otherwise planting + typical days to maturity.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropCalendar.ProgressPercent(AgrismartAPI.Domain.Assistant.FarmCrop,System.Nullable{System.DateOnly},System.DateOnly)">
+            <summary>0-100. Harvested crops are 100; planned crops 0; unknown season length 0.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropCalendar.Stages(AgrismartAPI.Domain.Assistant.FarmCrop,AgrismartAPI.Application.MyFarm.CropInfo,System.Collections.Generic.IReadOnlyCollection{AgrismartAPI.Domain.Farms.FarmActivity},System.DateOnly)">
+            <summary>The calendar strip for one crop, with each stage's status worked out from its tasks and dates.</summary>
+            <param name="activities">This crop's activities (any status).</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropCalendar.PlanActivities(AgrismartAPI.Domain.Assistant.FarmCrop,AgrismartAPI.Application.MyFarm.CropInfo,System.DateOnly)">
+            <summary>
+            Tasks for the crop from today on (past ones are not created: the calendar already treats past windows as done).
+            None when there is no planting date or the crop is no longer in the field.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CropInfo">
+            <summary>What My Farm knows about one crop key, merged from the harvest and fertilizer catalogues.</summary>
+            <param name="TypicalDaysToMaturity">Planting to harvest, in days. Null for perennials with no catalogue value.</param>
+            <param name="Stages">Growth stages by fraction of the season, for the "Growth Stage" label.</param>
+            <param name="FertilizerSchedule">Split applications, for the fertilizer tasks. Empty when unknown.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropInfo.#ctor(System.String,System.String,System.String,System.Nullable{System.Int32},System.Boolean,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Domain.Harvest.GrowthStage},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Domain.Fertilizer.FertilizerSplit})">
+            <summary>What My Farm knows about one crop key, merged from the harvest and fertilizer catalogues.</summary>
+            <param name="TypicalDaysToMaturity">Planting to harvest, in days. Null for perennials with no catalogue value.</param>
+            <param name="Stages">Growth stages by fraction of the season, for the "Growth Stage" label.</param>
+            <param name="FertilizerSchedule">Split applications, for the fertilizer tasks. Empty when unknown.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropInfo.TypicalDaysToMaturity">
+            <summary>Planting to harvest, in days. Null for perennials with no catalogue value.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropInfo.Stages">
+            <summary>Growth stages by fraction of the season, for the "Growth Stage" label.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropInfo.FertilizerSchedule">
+            <summary>Split applications, for the fertilizer tasks. Empty when unknown.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CropCatalog">
+            <summary>The crop keys a farm can use: union of GET /crops and GET /fertilizer/crops.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropCatalog.Get(System.String)">
+            <summary>Never null: unknown keys (e.g. a crop later removed from the catalogue) get a bare entry.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.MyFarmAppService">
+            <summary>
+            The "My Farm" screen: crop cards, crop calendar, activities, crop health, map and analytics for one of the
+            signed-in farmer's farms. Every method checks the farm belongs to <c>userId</c> and reports another
+            farmer's farm as not found.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MyFarmAppService.#ctor(AgrismartAPI.Domain.Farms.IMyFarmRepository,AgrismartAPI.Domain.Harvest.ICropRepository,AgrismartAPI.Domain.Fertilizer.IFertilizerCropRepository,AgrismartAPI.Application.Scans.ScanAppService,AgrismartAPI.Application.Abstractions.IFileStorageService,System.TimeProvider)">
+            <summary>
+            The "My Farm" screen: crop cards, crop calendar, activities, crop health, map and analytics for one of the
+            signed-in farmer's farms. Every method checks the farm belongs to <c>userId</c> and reports another
+            farmer's farm as not found.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MyFarmAppService.DeleteCropAsync(System.Guid,System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>Deletes the crop and its open tasks. Completed tasks stay in the farm's history.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MyFarmAppService.HarvestCropAsync(System.Guid,System.Guid,System.Guid,AgrismartAPI.Application.MyFarm.HarvestCropRequest,System.Threading.CancellationToken)">
+            <summary>
+            Marks the crop harvested: open harvest tasks are completed, other open calendar tasks are skipped and,
+            when a quantity is given, a yield record is added (it also feeds the AI assistant and analytics).
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MyFarmAppService.SetCropStatusAsync(System.Guid,System.Guid,System.Guid,AgrismartAPI.Application.MyFarm.CropStatusRequest,System.Threading.CancellationToken)">
+            <summary>Mark a crop failed (open calendar tasks are skipped) or put it back in the field.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MyFarmAppService.ScanAsync(System.Guid,System.Guid,System.Nullable{System.Guid},AgrismartAPI.Application.Common.UploadedFile,System.Threading.CancellationToken)">
+            <summary>
+            Runs the existing plant-scan diagnosis on the photo (it also appears in GET /scans) and files it under this
+            farm and, optionally, one of its crops.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MyFarmAppService.OrderedCrops(AgrismartAPI.Domain.Assistant.Farm,AgrismartAPI.Application.MyFarm.CropCatalog,System.DateOnly)">
+            <summary>In the field first (by planting date), then planned, then finished crops.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmCropDisplayStatus">
+            <summary>Status shown on a crop card. Planned/growing/ready are worked out from the dates.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.MyFarm.FarmCropDisplayStatus.Planned">
+            <summary>No planting date yet, or it is in the future.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.MyFarm.FarmCropDisplayStatus.ReadyToHarvest">
+            <summary>Still in the field but past its expected harvest date.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Application.MyFarm.CalendarStageStatus.Overdue">
+            <summary>The stage window has passed but some of its tasks are still pending.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmCropStatusChange">
+            <summary>Values for PUT /farms/{farmId}/crops/{id}/status.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest">
+            <summary>A crop plot to add to (or replace on) a farm.</summary>
+            <param name="CropId">Crop key from GET /farms/options (or GET /crops), e.g. "rice-lowland".</param>
+            <param name="PlotName">e.g. "Plot 1". Defaults to "Plot N" when adding.</param>
+            <param name="Variety">Seed variety, e.g. "NERICA 14".</param>
+            <param name="PlantingDate">yyyy-MM-dd. Leave empty while the crop is only planned.</param>
+            <param name="ExpectedHarvestDate">yyyy-MM-dd. Leave empty to have it estimated from the crop's typical days to maturity.</param>
+            <param name="PlotSize">Size in <paramref name="AreaUnit"/>.</param>
+            <param name="AreaUnit">hectare (default), acre or squareMeter.</param>
+            <param name="Latitude">Plot pin for the map; give with longitude.</param>
+            <param name="Longitude">Plot pin for the map; give with latitude.</param>
+            <param name="Boundary">Plot outline for the map (3 to 200 points), or omit.</param>
+            <param name="Notes">Free text, up to 1000 characters.</param>
+            <param name="GenerateActivities">
+            When true (default) the crop calendar's upcoming tasks (fertilizer doses, weeding, pest checks, harvest) are added
+            as pending activities. On edit they are regenerated only if the crop, planting date or harvest date changed.
+            </param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.#ctor(System.String,System.String,System.String,System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.Nullable{System.Double},AgrismartAPI.Application.Fertilizer.AreaUnit,System.Nullable{System.Double},System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.GeoPointDto},System.String,System.Boolean)">
+            <summary>A crop plot to add to (or replace on) a farm.</summary>
+            <param name="CropId">Crop key from GET /farms/options (or GET /crops), e.g. "rice-lowland".</param>
+            <param name="PlotName">e.g. "Plot 1". Defaults to "Plot N" when adding.</param>
+            <param name="Variety">Seed variety, e.g. "NERICA 14".</param>
+            <param name="PlantingDate">yyyy-MM-dd. Leave empty while the crop is only planned.</param>
+            <param name="ExpectedHarvestDate">yyyy-MM-dd. Leave empty to have it estimated from the crop's typical days to maturity.</param>
+            <param name="PlotSize">Size in <paramref name="AreaUnit"/>.</param>
+            <param name="AreaUnit">hectare (default), acre or squareMeter.</param>
+            <param name="Latitude">Plot pin for the map; give with longitude.</param>
+            <param name="Longitude">Plot pin for the map; give with latitude.</param>
+            <param name="Boundary">Plot outline for the map (3 to 200 points), or omit.</param>
+            <param name="Notes">Free text, up to 1000 characters.</param>
+            <param name="GenerateActivities">
+            When true (default) the crop calendar's upcoming tasks (fertilizer doses, weeding, pest checks, harvest) are added
+            as pending activities. On edit they are regenerated only if the crop, planting date or harvest date changed.
+            </param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.CropId">
+            <summary>Crop key from GET /farms/options (or GET /crops), e.g. "rice-lowland".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.PlotName">
+            <summary>e.g. "Plot 1". Defaults to "Plot N" when adding.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.Variety">
+            <summary>Seed variety, e.g. "NERICA 14".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.PlantingDate">
+            <summary>yyyy-MM-dd. Leave empty while the crop is only planned.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.ExpectedHarvestDate">
+            <summary>yyyy-MM-dd. Leave empty to have it estimated from the crop's typical days to maturity.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.PlotSize">
+            <summary>Size in <paramref name="AreaUnit"/>.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.AreaUnit">
+            <summary>hectare (default), acre or squareMeter.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.Latitude">
+            <summary>Plot pin for the map; give with longitude.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.Longitude">
+            <summary>Plot pin for the map; give with latitude.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.Boundary">
+            <summary>Plot outline for the map (3 to 200 points), or omit.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.Notes">
+            <summary>Free text, up to 1000 characters.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest.GenerateActivities">
+            <summary>
+            When true (default) the crop calendar's upcoming tasks (fertilizer doses, weeding, pest checks, harvest) are added
+            as pending activities. On edit they are regenerated only if the crop, planting date or harvest date changed.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.HarvestCropRequest">
+            <summary>Marks a crop harvested and, if a quantity is given, records the yield.</summary>
+            <param name="HarvestedOn">Defaults to today.</param>
+            <param name="Quantity">Amount harvested, e.g. 1200.</param>
+            <param name="Unit">e.g. "kg" or "bags". Required with quantity.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.HarvestCropRequest.#ctor(System.Nullable{System.DateOnly},System.Nullable{System.Double},System.String,System.String)">
+            <summary>Marks a crop harvested and, if a quantity is given, records the yield.</summary>
+            <param name="HarvestedOn">Defaults to today.</param>
+            <param name="Quantity">Amount harvested, e.g. 1200.</param>
+            <param name="Unit">e.g. "kg" or "bags". Required with quantity.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.HarvestCropRequest.HarvestedOn">
+            <summary>Defaults to today.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.HarvestCropRequest.Quantity">
+            <summary>Amount harvested, e.g. 1200.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.HarvestCropRequest.Unit">
+            <summary>e.g. "kg" or "bags". Required with quantity.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmActivityRequest">
+            <param name="FarmCropId">The crop plot this task is for (from the crops list), or null for whole-farm work.</param>
+            <param name="Cost">Planned or actual spend in Leones (SLE).</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmActivityRequest.#ctor(AgrismartAPI.Domain.Farms.FarmActivityType,System.String,System.DateOnly,System.Nullable{System.Guid},System.String,System.Nullable{System.Decimal})">
+            <param name="FarmCropId">The crop plot this task is for (from the crops list), or null for whole-farm work.</param>
+            <param name="Cost">Planned or actual spend in Leones (SLE).</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmActivityRequest.FarmCropId">
+            <summary>The crop plot this task is for (from the crops list), or null for whole-farm work.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmActivityRequest.Cost">
+            <summary>Planned or actual spend in Leones (SLE).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CompleteActivityRequest">
+            <param name="CompletedOn">Defaults to today.</param>
+            <param name="Cost">Actual spend in Leones; replaces the planned cost when given.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CompleteActivityRequest.#ctor(System.Nullable{System.DateOnly},System.Nullable{System.Decimal},System.String)">
+            <param name="CompletedOn">Defaults to today.</param>
+            <param name="Cost">Actual spend in Leones; replaces the planned cost when given.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CompleteActivityRequest.CompletedOn">
+            <summary>Defaults to today.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CompleteActivityRequest.Cost">
+            <summary>Actual spend in Leones; replaces the planned cost when given.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmMapRequest">
+            <summary>Farm pin and outline. Both are replaced; omit a field to clear it.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmMapRequest.#ctor(System.Nullable{System.Double},System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.GeoPointDto})">
+            <summary>Farm pin and outline. Both are replaced; omit a field to clear it.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmHeaderDto">
+            <summary>The header: "Green Valley Farm · 4.5 ha · Port Loko".</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmHeaderDto.#ctor(System.Guid,System.String,System.String,System.Nullable{System.Double},System.Nullable{System.Double},System.Nullable{System.Double},System.Int32,System.Double)">
+            <summary>The header: "Green Valley Farm · 4.5 ha · Port Loko".</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmCropCardDto">
+            <summary>One crop card in "My Crops".</summary>
+            <param name="ProgressPercent">0-100: days since planting over days from planting to harvest.</param>
+            <param name="GrowthStage">e.g. "Tillering". Null when there is no planting date.</param>
+            <param name="ExpectedHarvestIsEstimate">True when the date was estimated from the crop catalogue.</param>
+            <param name="DaysToHarvest">Negative once the expected date has passed.</param>
+            <param name="ImageUrl">Farmer's own photo (root-relative), or null: show the app's default image for <paramref name="CropId"/>.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmCropCardDto.#ctor(System.Guid,System.Guid,System.String,System.String,System.String,System.String,System.String,System.Nullable{System.Double},System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.Boolean,System.Nullable{System.Int32},AgrismartAPI.Application.MyFarm.FarmCropDisplayStatus,System.Int32,System.String,System.Nullable{System.DateOnly},System.String,AgrismartAPI.Application.MyFarm.GeoPointDto,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.GeoPointDto},System.String,System.Int32,System.DateTimeOffset)">
+            <summary>One crop card in "My Crops".</summary>
+            <param name="ProgressPercent">0-100: days since planting over days from planting to harvest.</param>
+            <param name="GrowthStage">e.g. "Tillering". Null when there is no planting date.</param>
+            <param name="ExpectedHarvestIsEstimate">True when the date was estimated from the crop catalogue.</param>
+            <param name="DaysToHarvest">Negative once the expected date has passed.</param>
+            <param name="ImageUrl">Farmer's own photo (root-relative), or null: show the app's default image for <paramref name="CropId"/>.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropCardDto.ExpectedHarvestIsEstimate">
+            <summary>True when the date was estimated from the crop catalogue.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropCardDto.DaysToHarvest">
+            <summary>Negative once the expected date has passed.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropCardDto.ProgressPercent">
+            <summary>0-100: days since planting over days from planting to harvest.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropCardDto.GrowthStage">
+            <summary>e.g. "Tillering". Null when there is no planting date.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmCropCardDto.ImageUrl">
+            <summary>Farmer's own photo (root-relative), or null: show the app's default image for <paramref name="CropId"/>.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CalendarStageDto">
+            <summary>One step of the crop calendar strip (Land Prep → Harvesting).</summary>
+            <param name="Key">landPreparation, planting, fertilizing, weeding, pestControl or harvesting.</param>
+            <param name="KeyDate">The date to print under the icon.</param>
+            <param name="DatePrecision">"day" (print "12 Jun") or "month" (print "Jul").</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CalendarStageDto.#ctor(System.String,System.String,AgrismartAPI.Domain.Farms.FarmActivityType,System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.String,AgrismartAPI.Application.MyFarm.CalendarStageStatus,System.Int32,System.Int32)">
+            <summary>One step of the crop calendar strip (Land Prep → Harvesting).</summary>
+            <param name="Key">landPreparation, planting, fertilizing, weeding, pestControl or harvesting.</param>
+            <param name="KeyDate">The date to print under the icon.</param>
+            <param name="DatePrecision">"day" (print "12 Jun") or "month" (print "Jul").</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CalendarStageDto.Key">
+            <summary>landPreparation, planting, fertilizing, weeding, pestControl or harvesting.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CalendarStageDto.KeyDate">
+            <summary>The date to print under the icon.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CalendarStageDto.DatePrecision">
+            <summary>"day" (print "12 Jun") or "month" (print "Jul").</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CropCalendarDto">
+            <param name="CurrentStageKey">The stage to highlight: the first one not completed. Null when all are done.</param>
+            <param name="Activities">All of this crop's activities, by due date. Empty in the overview.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropCalendarDto.#ctor(System.Guid,System.String,System.String,System.String,System.Nullable{System.Double},System.String,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.CalendarStageDto},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.FarmActivityDto})">
+            <param name="CurrentStageKey">The stage to highlight: the first one not completed. Null when all are done.</param>
+            <param name="Activities">All of this crop's activities, by due date. Empty in the overview.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropCalendarDto.CurrentStageKey">
+            <summary>The stage to highlight: the first one not completed. Null when all are done.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropCalendarDto.Activities">
+            <summary>All of this crop's activities, by due date. Empty in the overview.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmActivityDto">
+            <param name="DueInDays">0 = today, 1 = tomorrow, negative = overdue (pending only).</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmActivityDto.#ctor(System.Guid,System.Guid,System.Nullable{System.Guid},System.String,System.String,System.String,AgrismartAPI.Domain.Farms.FarmActivityType,System.String,System.String,System.DateOnly,System.Int32,System.Boolean,AgrismartAPI.Domain.Farms.FarmActivityStatus,System.Nullable{System.DateOnly},System.Nullable{System.Decimal},AgrismartAPI.Domain.Farms.FarmActivitySource,System.DateTimeOffset)">
+            <param name="DueInDays">0 = today, 1 = tomorrow, negative = overdue (pending only).</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmActivityDto.DueInDays">
+            <summary>0 = today, 1 = tomorrow, negative = overdue (pending only).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CropHealthScanDto">
+            <param name="ConfidencePercent">0-100, e.g. 92.</param>
+            <param name="Headline">e.g. "No major disease detected" or "Rice blast detected".</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropHealthScanDto.#ctor(System.Guid,System.String,System.DateTimeOffset,System.Nullable{System.Guid},System.String,System.String,System.String,AgrismartAPI.Domain.Diagnoses.Severity,System.Boolean,System.Int32,System.String,System.String,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Diagnoses.TreatmentStepDto})">
+            <param name="ConfidencePercent">0-100, e.g. 92.</param>
+            <param name="Headline">e.g. "No major disease detected" or "Rice blast detected".</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropHealthScanDto.ConfidencePercent">
+            <summary>0-100, e.g. 92.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropHealthScanDto.Headline">
+            <summary>e.g. "No major disease detected" or "Rice blast detected".</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.CropHealthDto">
+            <param name="LastScan">Latest scan for this farm, or (when the farm has none) the farmer's latest scan anywhere.</param>
+            <param name="LastScanIsFromThisFarm">False when <paramref name="LastScan"/> is the fallback.</param>
+            <param name="History">This farm's scans, newest first.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.CropHealthDto.#ctor(AgrismartAPI.Application.MyFarm.CropHealthScanDto,System.Boolean,System.Int32,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.CropHealthScanDto})">
+            <param name="LastScan">Latest scan for this farm, or (when the farm has none) the farmer's latest scan anywhere.</param>
+            <param name="LastScanIsFromThisFarm">False when <paramref name="LastScan"/> is the fallback.</param>
+            <param name="History">This farm's scans, newest first.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropHealthDto.LastScan">
+            <summary>Latest scan for this farm, or (when the farm has none) the farmer's latest scan anywhere.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropHealthDto.LastScanIsFromThisFarm">
+            <summary>False when <paramref name="LastScan"/> is the fallback.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.CropHealthDto.History">
+            <summary>This farm's scans, newest first.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmOverviewDto">
+            <summary>Everything the "Crops" tab needs in one call.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmOverviewDto.#ctor(AgrismartAPI.Application.MyFarm.FarmHeaderDto,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.FarmCropCardDto},AgrismartAPI.Application.MyFarm.CropCalendarDto,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.FarmActivityDto},System.Int32,System.Int32,AgrismartAPI.Application.MyFarm.CropHealthScanDto,System.Boolean)">
+            <summary>Everything the "Crops" tab needs in one call.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmMapDto">
+            <param name="Center">Farm pin, or null if no location has been set.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmMapDto.#ctor(System.Guid,System.String,System.String,AgrismartAPI.Application.MyFarm.GeoPointDto,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.GeoPointDto},System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.FarmMapPlotDto})">
+            <param name="Center">Farm pin, or null if no location has been set.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmMapDto.Center">
+            <summary>Farm pin, or null if no location has been set.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.MonthlyActivityDto">
+            <param name="Month">yyyy-MM.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MonthlyActivityDto.#ctor(System.String,System.Int32,System.Int32,System.Decimal)">
+            <param name="Month">yyyy-MM.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.MonthlyActivityDto.Month">
+            <summary>yyyy-MM.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.FarmAnalyticsDto">
+            <summary>The "Analytics" tab.</summary>
+            <param name="TotalCost">Sum of activity costs in Leones (SLE).</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.FarmAnalyticsDto.#ctor(System.Guid,System.Nullable{System.Double},System.Double,System.Nullable{System.Double},System.Int32,AgrismartAPI.Application.MyFarm.CropStatusCountsDto,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.AreaByCropDto},AgrismartAPI.Application.MyFarm.ActivityCountsDto,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.ActivityTypeCountDto},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.MonthlyActivityDto},System.Decimal,System.String,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.YieldSummaryDto},AgrismartAPI.Application.MyFarm.HealthSummaryDto)">
+            <summary>The "Analytics" tab.</summary>
+            <param name="TotalCost">Sum of activity costs in Leones (SLE).</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.FarmAnalyticsDto.TotalCost">
+            <summary>Sum of activity costs in Leones (SLE).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.ActivityTypeOptionDto">
+            <param name="StageKey">The crop-calendar stage this type belongs to, or null.</param>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.ActivityTypeOptionDto.#ctor(AgrismartAPI.Domain.Farms.FarmActivityType,System.String,System.String)">
+            <param name="StageKey">The crop-calendar stage this type belongs to, or null.</param>
+        </member>
+        <member name="P:AgrismartAPI.Application.MyFarm.ActivityTypeOptionDto.StageKey">
+            <summary>The crop-calendar stage this type belongs to, or null.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.MyFarmOptionsDto">
+            <summary>Lookup lists for the My Farm forms.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Application.MyFarm.MyFarmOptionsDto.#ctor(System.Collections.Generic.IReadOnlyList{System.String},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.CropOptionDto},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.MyFarm.ActivityTypeOptionDto},System.Collections.Generic.IReadOnlyList{System.String},System.String)">
+            <summary>Lookup lists for the My Farm forms.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Application.MyFarm.MyFarmRequestValidator">
+            <summary>Field-level validation for the My Farm requests. Errors are keyed by camelCase field path.</summary>
+        </member>
         <member name="M:AgrismartAPI.Application.Orders.OrderAppService.CreateMonimeOrderAsync(System.Guid,System.Collections.Generic.IReadOnlyList{AgrismartAPI.Application.Orders.OrderItemRequest},System.Threading.CancellationToken)">
             <summary>Used only by <c>CheckoutAppService</c> to place the underlying order for a Monime checkout session.</summary>
         </member>
@@ -1067,6 +1477,58 @@
         </member>
         <member name="M:AgrismartAPI.Controllers.CropsController.#ctor(AgrismartAPI.Application.Harvest.HarvestAppService)">
             <summary>Crop catalog backing the "Crops and harvest prediction" feature — see also HarvestPredictionsController.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.FarmActivitiesController">
+            <summary>The "Activities" tab and "Upcoming Activities" list of the My Farm screen.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.#ctor(AgrismartAPI.Application.MyFarm.MyFarmAppService,AgrismartAPI.Application.Abstractions.ICurrentUserService)">
+            <summary>The "Activities" tab and "Upcoming Activities" list of the My Farm screen.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.GetActivities(System.Guid,System.Nullable{AgrismartAPI.Domain.Farms.FarmActivityStatus},System.Nullable{System.Guid},System.Nullable{AgrismartAPI.Domain.Farms.FarmActivityType},System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.Int32,System.Int32,System.Threading.CancellationToken)">
+            <summary>The farm's activities: open ones first (soonest due first), then finished ones (latest first).</summary>
+            <param name="farmId">Farm id from GET /farms.</param>
+            <param name="status">pending, completed or skipped.</param>
+            <param name="farmCropId">Only this crop's activities.</param>
+            <param name="type">landPreparation, planting, fertilizing, weeding, pestControl, harvesting, irrigation, scouting or other.</param>
+            <param name="from">Due on or after (yyyy-MM-dd).</param>
+            <param name="to">Due on or before (yyyy-MM-dd).</param>
+            <param name="page">1-based page.</param>
+            <param name="pageSize">1-100, default 20.</param>
+            <response code="200">One page of activities.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.AddActivity(System.Guid,AgrismartAPI.Application.MyFarm.FarmActivityRequest,System.Threading.CancellationToken)">
+            <summary>Adds a task, for the whole farm or one crop (farmCropId).</summary>
+            <response code="201">Created.</response>
+            <response code="400">Invalid values, with field-level errors.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.UpdateActivity(System.Guid,System.Guid,AgrismartAPI.Application.MyFarm.FarmActivityRequest,System.Threading.CancellationToken)">
+            <summary>Edits a task (all fields replaced). Its status is changed with complete/skip/reopen.</summary>
+            <response code="200">Updated.</response>
+            <response code="400">Invalid values, with field-level errors.</response>
+            <response code="404">Farm or activity not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.Complete(System.Guid,System.Guid,AgrismartAPI.Application.MyFarm.CompleteActivityRequest,System.Threading.CancellationToken)">
+            <summary>Marks a task done. The body is optional: completedOn (default today), actual cost, notes.</summary>
+            <response code="200">Updated.</response>
+            <response code="400">Invalid values.</response>
+            <response code="404">Farm or activity not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.Skip(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>Marks a task as not needed.</summary>
+            <response code="200">Updated.</response>
+            <response code="404">Farm or activity not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.Reopen(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>Puts a completed or skipped task back to pending.</summary>
+            <response code="200">Updated.</response>
+            <response code="404">Farm or activity not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.FarmActivitiesController.DeleteActivity(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>Deletes a task.</summary>
+            <response code="204">Deleted.</response>
+            <response code="404">Farm or activity not found.</response>
         </member>
         <member name="T:AgrismartAPI.Controllers.FarmsController">
             <summary>
@@ -1254,6 +1716,126 @@
         <member name="M:AgrismartAPI.Controllers.HarvestPredictionsController.PredictQuery(System.String,System.Double,System.Double,System.DateOnly,System.Nullable{System.Boolean},System.Nullable{System.Double},System.Threading.CancellationToken)">
             <summary>Same prediction, as a GET with query parameters for quick manual testing.</summary>
         </member>
+        <member name="T:AgrismartAPI.Controllers.MyFarmController">
+            <summary>
+            "My Farm": the farm management screen. The farm itself is created and edited with /farms (FarmsController);
+            these endpoints serve the screen's tabs: Crops (overview), Map, Activities and Analytics, plus Crop Health.
+            Only the signed-in farmer's farms are visible; another farmer's farm id returns 404.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.#ctor(AgrismartAPI.Application.MyFarm.MyFarmAppService,AgrismartAPI.Application.Abstractions.ICurrentUserService)">
+            <summary>
+            "My Farm": the farm management screen. The farm itself is created and edited with /farms (FarmsController);
+            these endpoints serve the screen's tabs: Crops (overview), Map, Activities and Analytics, plus Crop Health.
+            Only the signed-in farmer's farms are visible; another farmer's farm id returns 404.
+            </summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.GetOptions(System.Threading.CancellationToken)">
+            <summary>Lookup lists for the My Farm forms: districts, crops, activity types, area units.</summary>
+            <response code="200">The lists.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.GetOverview(System.Guid,System.Nullable{System.Guid},System.Int32,System.Threading.CancellationToken)">
+            <summary>Everything on the "Crops" tab in one call: header, crop cards, crop calendar, upcoming activities, crop health.</summary>
+            <param name="farmId">Farm id from GET /farms.</param>
+            <param name="calendarCropId">Crop card id to show in the Crop Calendar. Defaults to the first crop in the field.</param>
+            <param name="activitiesLimit">How many upcoming activities to return (1-20, default 3).</param>
+            <response code="200">The overview.</response>
+            <response code="404">Farm (or calendarCropId) not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.GetMap(System.Guid,System.Threading.CancellationToken)">
+            <summary>The "Map" tab: farm pin and outline, and each crop plot's pin and outline.</summary>
+            <response code="200">The map data.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.UpdateMap(System.Guid,AgrismartAPI.Application.MyFarm.FarmMapRequest,System.Threading.CancellationToken)">
+            <summary>Sets the farm pin and outline (3-200 points). Plot pins/outlines are set on each crop.</summary>
+            <response code="200">Updated map data.</response>
+            <response code="400">Invalid coordinates.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.GetHealth(System.Guid,System.Threading.CancellationToken)">
+            <summary>Crop Health: the latest scan and this farm's scan history ("View History").</summary>
+            <response code="200">Health data.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.Scan(System.Guid,Microsoft.AspNetCore.Http.IFormFile,System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>"Scan Plant": diagnoses a photo and files it under this farm (and optionally one crop).</summary>
+            <remarks>multipart/form-data with <c>image</c> (JPEG/PNG, up to 10 MB) and optional <c>farmCropId</c>.</remarks>
+            <response code="200">The diagnosis.</response>
+            <response code="400">Missing or invalid image.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.GetAnalytics(System.Guid,System.Threading.CancellationToken)">
+            <summary>The "Analytics" tab: land use, crop status counts, activity completion and spend, yields and crop health.</summary>
+            <response code="200">The analytics.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmController.ImageError(Microsoft.AspNetCore.Http.IFormFile)">
+            <summary>Null when the upload is a usable image, otherwise the message to return.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Controllers.MyFarmCropsController">
+            <summary>"My Crops" on the My Farm screen: crop cards, Add Crop, harvest, and the full crop calendar.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.#ctor(AgrismartAPI.Application.MyFarm.MyFarmAppService,AgrismartAPI.Application.Abstractions.ICurrentUserService)">
+            <summary>"My Crops" on the My Farm screen: crop cards, Add Crop, harvest, and the full crop calendar.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.GetCrops(System.Guid,System.Nullable{AgrismartAPI.Application.MyFarm.FarmCropDisplayStatus},System.Threading.CancellationToken)">
+            <summary>The farm's crop cards: in the field first, then planned, then harvested/failed.</summary>
+            <param name="farmId">Farm id from GET /farms.</param>
+            <param name="status">Optional filter: planned, growing, readyToHarvest, harvested or failed.</param>
+            <response code="200">Crop cards.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.GetCrop(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>One crop card.</summary>
+            <response code="200">The crop.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.AddCrop(System.Guid,AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest,System.Threading.CancellationToken)">
+            <summary>"Add Crop". With a planting date, the crop calendar's upcoming tasks are added as activities.</summary>
+            <response code="201">Created; returns the crop card.</response>
+            <response code="400">Invalid values, with field-level errors.</response>
+            <response code="404">Farm not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.UpdateCrop(System.Guid,System.Guid,AgrismartAPI.Application.MyFarm.FarmCropUpsertRequest,System.Threading.CancellationToken)">
+            <summary>Edits a crop. Every field is replaced (send the current values for fields you keep).</summary>
+            <remarks>
+            If cropId, plantingDate or expectedHarvestDate change (and generateActivities is true), open calendar tasks are
+            replaced by a new plan. Tasks the farmer added or finished are kept.
+            </remarks>
+            <response code="200">Updated crop card.</response>
+            <response code="400">Invalid values, with field-level errors.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.DeleteCrop(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>Deletes a crop and its open tasks. Completed tasks stay in the farm history.</summary>
+            <response code="204">Deleted.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.UploadImage(System.Guid,System.Guid,Microsoft.AspNetCore.Http.IFormFile,System.Threading.CancellationToken)">
+            <summary>Uploads the farmer's own photo for the crop card (replaces the default crop image).</summary>
+            <remarks>multipart/form-data with <c>image</c> (JPEG/PNG, up to 10 MB).</remarks>
+            <response code="200">Updated crop card with imageUrl.</response>
+            <response code="400">Missing or invalid image.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.Harvest(System.Guid,System.Guid,AgrismartAPI.Application.MyFarm.HarvestCropRequest,System.Threading.CancellationToken)">
+            <summary>Marks the crop harvested and optionally records the yield.</summary>
+            <response code="200">Updated crop card.</response>
+            <response code="400">Invalid values, with field-level errors.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.SetStatus(System.Guid,System.Guid,AgrismartAPI.Application.MyFarm.CropStatusRequest,System.Threading.CancellationToken)">
+            <summary>Marks the crop failed, or puts a harvested/failed crop back in the field ("active").</summary>
+            <response code="200">Updated crop card.</response>
+            <response code="400">Invalid status.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
+        <member name="M:AgrismartAPI.Controllers.MyFarmCropsController.GetCalendar(System.Guid,System.Guid,System.Threading.CancellationToken)">
+            <summary>"View Full Calendar": the six calendar stages and every task for this crop.</summary>
+            <response code="200">The calendar.</response>
+            <response code="404">Farm or crop not found.</response>
+        </member>
         <member name="M:AgrismartAPI.Controllers.OrdersController.GetAll(System.Threading.CancellationToken)">
             <summary>Every order across every customer, including buyer details and the seller of each item.</summary>
         </member>
@@ -1299,11 +1881,38 @@
         <member name="P:AgrismartAPI.Domain.Assistant.Farm.District">
             <summary>Sierra Leone district, e.g. "Bo" or "Kenema".</summary>
         </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.Farm.Boundary">
+            <summary>Farm outline for the map, as an ordered ring of points. Empty when not drawn.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Assistant.Farm.SetMap(System.Nullable{System.Double},System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Domain.Farms.GeoPoint})">
+            <summary>Sets the map pin and outline (the "Map" tab). Values are expected to be validated already.</summary>
+        </member>
         <member name="T:AgrismartAPI.Domain.Assistant.FarmCrop">
             <summary>A crop planted on a <see cref="T:AgrismartAPI.Domain.Assistant.Farm"/>.</summary>
         </member>
         <member name="P:AgrismartAPI.Domain.Assistant.FarmCrop.CropId">
             <summary>Crop key, e.g. "cassava" or "rice-lowland".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.FarmCrop.PlotName">
+            <summary>Plot label shown to the farmer, e.g. "Plot 1".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.FarmCrop.Variety">
+            <summary>Seed variety, e.g. "NERICA 14" or "TME 419".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.FarmCrop.ExpectedHarvestDate">
+            <summary>Farmer-supplied harvest date. Null means "estimate it from the crop catalogue".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.FarmCrop.ImageUrl">
+            <summary>Root-relative URL of the farmer's own photo of this crop, e.g. "/uploads/farm-crops/x.jpg".</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Assistant.FarmCrop.Boundary">
+            <summary>Plot outline for the map, as an ordered ring of points. Empty when not drawn.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Assistant.FarmCrop.UpdateDetails(System.String,System.String,System.String,System.Nullable{System.DateOnly},System.Nullable{System.DateOnly},System.Nullable{System.Double},System.Nullable{System.Double},System.Nullable{System.Double},System.Collections.Generic.IReadOnlyList{AgrismartAPI.Domain.Farms.GeoPoint},System.String)">
+            <summary>Replaces everything the farmer can edit on a crop card. Values are expected to be validated already.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Assistant.FarmCrop.Reactivate">
+            <summary>Back to the field, e.g. after marking harvested by mistake.</summary>
         </member>
         <member name="T:AgrismartAPI.Domain.Assistant.FarmRecord">
             <summary>Something that happened on the farm: fertilizer applied, a harvest weighed, a problem seen.</summary>
@@ -1331,6 +1940,64 @@
         </member>
         <member name="M:AgrismartAPI.Domain.Checkout.CheckoutSession.UpdateStatus(System.String,System.String)">
             <summary>Applies the latest status/raw payload fetched from Monime during reconciliation.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Farms.FarmActivity">
+            <summary>A task on the farm (fertilize, weed, scout for pests...), optionally tied to one crop plot.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Farms.FarmActivity.FarmCropId">
+            <summary>The crop plot this is for. Cleared if the crop is deleted; <see cref="P:AgrismartAPI.Domain.Farms.FarmActivity.CropId"/> keeps the crop key.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Farms.FarmActivity.CropId">
+            <summary>Crop key snapshot, e.g. "rice-lowland", kept for history after the crop is removed.</summary>
+        </member>
+        <member name="P:AgrismartAPI.Domain.Farms.FarmActivity.Cost">
+            <summary>Money spent on this task, in Leones (SLE). Optional; feeds the analytics tab.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Farms.FarmActivity.Complete(System.DateOnly,System.Nullable{System.Decimal},System.String)">
+            <param name="cost">Replaces the cost when given; otherwise the planned cost is kept.</param>
+            <param name="notes">Replaces the notes when given.</param>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Farms.GeoPoint">
+            <summary>A point on the map (WGS84 degrees).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Farms.GeoPoint.#ctor(System.Double,System.Double)">
+            <summary>A point on the map (WGS84 degrees).</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Farms.FarmCropStatus">
+            <summary>What the farmer has said about a crop. Planned / growing / ready are derived from dates, not stored.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Farms.FarmActivityType">
+            <summary>Kinds of farm work. The first six are also the stages of the crop calendar.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Farms.FarmActivitySource.Manual">
+            <summary>Added by the farmer.</summary>
+        </member>
+        <member name="F:AgrismartAPI.Domain.Farms.FarmActivitySource.Calendar">
+            <summary>Generated from the crop calendar when the crop was added or its dates changed.</summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Farms.FarmScan">
+            <summary>
+            Links a plant-health scan (the existing PlantScans table, left unchanged) to the farm and, optionally,
+            the crop plot it was taken on. Powers the "Crop Health" card.
+            </summary>
+        </member>
+        <member name="T:AgrismartAPI.Domain.Farms.IMyFarmRepository">
+            <summary>Data access for the My Farm screens. Entities returned are tracked, so changes are saved by <see cref="M:AgrismartAPI.Domain.Farms.IMyFarmRepository.SaveChangesAsync(System.Threading.CancellationToken)"/>.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Farms.IMyFarmRepository.GetFarmAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>The farm with its crops, or null.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Farms.IMyFarmRepository.GetActivitiesAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>All of the farm's activities, any status.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Farms.IMyFarmRepository.GetScansAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>The farm's scans with their diagnosis, newest first.</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Farms.IMyFarmRepository.GetLatestScanForUserAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>The farmer's latest scan from anywhere in the app (the Crop Health fallback).</summary>
+        </member>
+        <member name="M:AgrismartAPI.Domain.Farms.IMyFarmRepository.GetYieldRecordsAsync(System.Guid,System.Threading.CancellationToken)">
+            <summary>Yield records linked to the farm.</summary>
         </member>
         <member name="T:AgrismartAPI.Domain.Fertilizer.FertilizerSplit">
             <summary>One application in a crop's split-fertilizer schedule.</summary>
@@ -2003,6 +2670,18 @@
             <inheritdoc />
         </member>
         <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddAiAssistant.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:AgrismartAPI.Infrastructure.Persistence.Migrations.AddMyFarm">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddMyFarm.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddMyFarm.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:AgrismartAPI.Infrastructure.Persistence.Migrations.AddMyFarm.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
         <member name="T:AgrismartAPI.Infrastructure.Storage.LocalFileStorageService">

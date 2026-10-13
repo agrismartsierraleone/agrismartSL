@@ -4,6 +4,7 @@ using AgrismartAPI.Application.Fertilizer;
 using AgrismartAPI.Domain.Audit;
 using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Checkout;
+using AgrismartAPI.Domain.Farms;
 using AgrismartAPI.Domain.Fertilizer;
 using AgrismartAPI.Domain.Harvest;
 using AgrismartAPI.Domain.Market;
@@ -63,6 +64,7 @@ public static class DependencyInjection
         services.AddScoped<IFertilizerCropRepository, FertilizerCropRepository>();
         services.AddScoped<IFertilizerProductRepository, FertilizerProductRepository>();
         services.AddScoped<IFertilizerRecommendationRepository, FertilizerRecommendationRepository>();
+        services.AddScoped<IMyFarmRepository, MyFarmRepository>();
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();

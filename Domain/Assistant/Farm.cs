@@ -1,4 +1,5 @@
 using AgrismartAPI.Domain.Common;
+using AgrismartAPI.Domain.Farms;
 
 namespace AgrismartAPI.Domain.Assistant;
 
@@ -15,6 +16,9 @@ public class Farm : Entity
     public double? Longitude { get; private set; }
     public double? AreaHectares { get; private set; }
     public DateTimeOffset CreatedAt { get; private init; }
+
+    /// <summary>Farm outline for the map, as an ordered ring of points. Empty when not drawn.</summary>
+    public IReadOnlyList<GeoPoint> Boundary { get; private set; } = [];
 
     private readonly List<FarmCrop> _crops = [];
     public IReadOnlyList<FarmCrop> Crops => _crops;
@@ -59,6 +63,19 @@ public class Farm : Entity
         }
 
         return new Farm(userId, name.Trim(), string.IsNullOrWhiteSpace(district) ? null : district.Trim(), latitude, longitude, areaHectares);
+    }
+
+    /// <summary>Sets the map pin and outline (the "Map" tab). Values are expected to be validated already.</summary>
+    public void SetMap(double? latitude, double? longitude, IReadOnlyList<GeoPoint>? boundary)
+    {
+        if (latitude is < -90 or > 90 || longitude is < -180 or > 180 || latitude.HasValue != longitude.HasValue)
+        {
+            throw new ArgumentException("Latitude and longitude must both be given and in range.", nameof(latitude));
+        }
+
+        Latitude = latitude;
+        Longitude = longitude;
+        Boundary = boundary?.ToList() ?? [];
     }
 
     public FarmCrop AddCrop(string cropId, DateOnly? plantingDate, double? plotSizeHectares)

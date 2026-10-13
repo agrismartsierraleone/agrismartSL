@@ -1,4 +1,5 @@
 using AgrismartAPI.Domain.Assistant;
+using AgrismartAPI.Domain.Farms;
 using AgrismartAPI.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -72,6 +73,12 @@ public class FarmConfiguration : IEntityTypeConfiguration<Farm>
         builder.Property(farm => farm.District).HasMaxLength(100);
         builder.Property(farm => farm.CreatedAt).IsRequired();
 
+        // My Farm map outline.
+        var boundaryProperty = builder.Property(farm => farm.Boundary)
+            .IsRequired()
+            .HasConversion(JsonValueConverters.ForList<GeoPoint>());
+        boundaryProperty.Metadata.SetValueComparer(JsonValueConverters.ListComparer<GeoPoint>());
+
         builder.HasMany(farm => farm.Crops).WithOne().HasForeignKey(crop => crop.FarmId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(farm => farm.Crops).UsePropertyAccessMode(PropertyAccessMode.Field);
 
@@ -90,6 +97,17 @@ public class FarmCropConfiguration : IEntityTypeConfiguration<FarmCrop>
         builder.Property(crop => crop.FarmId).IsRequired();
         builder.Property(crop => crop.CropId).IsRequired().HasMaxLength(50);
         builder.Property(crop => crop.CreatedAt).IsRequired();
+
+        // My Farm crop card details.
+        builder.Property(crop => crop.PlotName).HasMaxLength(FarmCrop.MaxPlotNameLength);
+        builder.Property(crop => crop.Variety).HasMaxLength(FarmCrop.MaxVarietyLength);
+        builder.Property(crop => crop.Status).IsRequired().HasConversion<string>().HasMaxLength(20);
+        builder.Property(crop => crop.ImageUrl).HasMaxLength(500);
+        builder.Property(crop => crop.Notes).HasMaxLength(FarmCrop.MaxNotesLength);
+        var boundaryProperty = builder.Property(crop => crop.Boundary)
+            .IsRequired()
+            .HasConversion(JsonValueConverters.ForList<GeoPoint>());
+        boundaryProperty.Metadata.SetValueComparer(JsonValueConverters.ListComparer<GeoPoint>());
 
         builder.HasIndex(crop => crop.FarmId);
     }

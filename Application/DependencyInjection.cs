@@ -7,11 +7,13 @@ using AgrismartAPI.Application.Diagnoses;
 using AgrismartAPI.Application.Fertilizer;
 using AgrismartAPI.Application.Harvest;
 using AgrismartAPI.Application.Market;
+using AgrismartAPI.Application.MyFarm;
 using AgrismartAPI.Application.Orders;
 using AgrismartAPI.Application.Scans;
 using AgrismartAPI.Application.Tutorials;
 using AgrismartAPI.Application.Users;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace AgrismartAPI.Application;
 
@@ -35,6 +37,8 @@ public static class DependencyInjection
         services.AddScoped<HarvestAppService>();
         services.AddScoped<FertilizerAppService>();
         services.AddScoped<IFertilizerCalculatorService, FertilizerCalculatorService>();
+        services.AddScoped<MyFarmAppService>();
+        services.TryAddSingleton(TimeProvider.System);
 
         return services;
     }

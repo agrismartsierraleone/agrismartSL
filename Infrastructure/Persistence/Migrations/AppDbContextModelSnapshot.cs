@@ -124,6 +124,10 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                     b.Property<double?>("AreaHectares")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("Boundary")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -158,6 +162,10 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Boundary")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -166,14 +174,50 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<DateOnly?>("ExpectedHarvestDate")
+                        .HasColumnType("date");
+
                     b.Property<Guid>("FarmId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("HarvestedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
 
                     b.Property<DateOnly?>("PlantingDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("PlotName")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
                     b.Property<double?>("PlotSizeHectares")
                         .HasColumnType("double precision");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Variety")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
 
                     b.HasKey("Id");
 
@@ -409,6 +453,111 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("CheckoutSessions", (string)null);
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Farms.FarmActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("CompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<decimal?>("Cost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CropId")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("FarmCropId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FarmId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FarmCropId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FarmId", "Status", "DueDate");
+
+                    b.ToTable("FarmActivities", (string)null);
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Farms.FarmScan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FarmCropId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FarmId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PlantScanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FarmCropId");
+
+                    b.HasIndex("PlantScanId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("FarmId", "CreatedAt");
+
+                    b.ToTable("FarmScans", (string)null);
                 });
 
             modelBuilder.Entity("AgrismartAPI.Domain.Fertilizer.FertilizerCropProfile", b =>
@@ -1090,6 +1239,52 @@ namespace AgrismartAPI.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("FarmId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AgrismartAPI.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Farms.FarmActivity", b =>
+                {
+                    b.HasOne("AgrismartAPI.Domain.Assistant.FarmCrop", null)
+                        .WithMany()
+                        .HasForeignKey("FarmCropId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AgrismartAPI.Domain.Assistant.Farm", null)
+                        .WithMany()
+                        .HasForeignKey("FarmId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AgrismartAPI.Domain.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("AgrismartAPI.Domain.Farms.FarmScan", b =>
+                {
+                    b.HasOne("AgrismartAPI.Domain.Assistant.FarmCrop", null)
+                        .WithMany()
+                        .HasForeignKey("FarmCropId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("AgrismartAPI.Domain.Assistant.Farm", null)
+                        .WithMany()
+                        .HasForeignKey("FarmId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AgrismartAPI.Domain.Scans.PlantScan", null)
+                        .WithMany()
+                        .HasForeignKey("PlantScanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("AgrismartAPI.Domain.Users.User", null)
                         .WithMany()

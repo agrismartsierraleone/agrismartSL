@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AgrismartAPI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f6ada507568d34c867895f2d57bea4e489e22942")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c0346fc13f3c44bbb603b7503f823645c03d9c22")]
 [assembly: System.Reflection.AssemblyProductAttribute("AgrismartAPI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AgrismartAPI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -31,7 +31,7 @@ public class UsersController(UserAppService userAppService) : ControllerBase
         return Ok(user);
     }
 
-    /// <summary>Admin-only: updates a user's name, email and/or password. Notifies the user by email of any change.</summary>
+    /// <summary>Admin-only: updates a user's name, email, password, phone number and/or NIN. Notifies the user by email of any change.</summary>
     [HttpPut("{id:guid}/credentials")]
     public async Task<ActionResult<UserSummaryDto>> UpdateCredentials(Guid id, UpdateUserCredentialsRequest request, CancellationToken cancellationToken)
     {

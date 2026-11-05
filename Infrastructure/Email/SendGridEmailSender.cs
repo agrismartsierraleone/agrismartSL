@@ -29,11 +29,19 @@ public class SendGridEmailSender(HttpClient httpClient, IOptions<SendGridSetting
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", settings.ApiKey);
 
-        using var response = await httpClient.SendAsync(request, cancellationToken);
-        if (!response.IsSuccessStatusCode)
+        // Emails go out after the change is saved, so a failure here must not turn a saved change into an API error.
+        try
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            logger.LogError("SendGrid failed to send email to {Email}: {StatusCode} {Body}", toEmail, response.StatusCode, body);
+            using var response = await httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                logger.LogError("SendGrid failed to send email to {Email}: {StatusCode} {Body}", toEmail, response.StatusCode, body);
+            }
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException)
+        {
+            logger.LogError(exception, "Could not reach SendGrid to send email to {Email} with subject '{Subject}'.", toEmail, subject);
         }
     }
 }

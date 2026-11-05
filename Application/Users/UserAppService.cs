@@ -28,13 +28,15 @@ public class UserAppService(
             throw new ValidationException("Password must be at least 8 characters long.");
         }
 
+        UserProfileValidator.EnsureValid(request.Role, request.PhoneNumber, request.Nin);
+
         var existing = await userRepository.GetByEmailAsync(request.Email, cancellationToken);
         if (existing is not null)
         {
             throw new ConflictException("An account with this email already exists.");
         }
 
-        var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role, User.TemporaryPasswordLifetime);
+        var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role, User.TemporaryPasswordLifetime, request.PhoneNumber, request.Nin);
         await userRepository.AddAsync(user, cancellationToken);
 
         if (user.Role == UserRole.Seller)
@@ -55,13 +57,16 @@ public class UserAppService(
         return ToDto(user);
     }
 
-    /// <summary>Admin-only: updates a user's name, email and/or password. Sends a notification email for any change made.</summary>
+    /// <summary>Admin-only: updates a user's name, email, password, phone number and/or NIN. Sends a notification email for any change made.</summary>
     public async Task<UserSummaryDto> UpdateCredentialsAsync(Guid userId, UpdateUserCredentialsRequest request, CancellationToken cancellationToken = default)
     {
         var user = await userRepository.GetByIdAsync(userId, cancellationToken)
                    ?? throw new NotFoundException($"User '{userId}' was not found.");
 
+        UserProfileValidator.EnsureLengths(request.PhoneNumber, request.Nin);
+
         var changes = new List<string>();
+        string? previousEmail = null;
 
         if (!string.IsNullOrWhiteSpace(request.Name) && request.Name.Trim() != user.Name)
         {
@@ -78,9 +83,22 @@ public class UserAppService(
                 throw new ConflictException("An account with this email already exists.");
             }
 
-            var previousEmail = user.Email;
+            previousEmail = user.Email;
             user.ChangeEmail(normalizedEmail);
             changes.Add($"Email changed from '{previousEmail}' to '{user.Email}'.");
+        }
+
+        // These lines also go into the audit log and the notification email, so they never include the values.
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && request.PhoneNumber.Trim() != user.PhoneNumber)
+        {
+            user.ChangePhoneNumber(request.PhoneNumber);
+            changes.Add("Phone number was updated.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Nin) && request.Nin.Trim() != user.Nin)
+        {
+            user.ChangeNin(request.Nin);
+            changes.Add("NIN was updated.");
         }
 
         if (!string.IsNullOrWhiteSpace(request.NewPassword))
@@ -109,7 +127,21 @@ public class UserAppService(
             string.Join(" ", changes),
             cancellationToken);
 
-        await userNotificationService.SendCredentialsUpdatedEmailAsync(user, changes, cancellationToken);
+        // The password goes in this email only: never in `changes`, which is also written to the audit log.
+        if (!string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            await userNotificationService.SendCredentialsUpdatedWithTemporaryPasswordEmailAsync(user, changes, request.NewPassword, cancellationToken);
+        }
+        else
+        {
+            await userNotificationService.SendCredentialsUpdatedEmailAsync(user, changes, cancellationToken);
+        }
+
+        // Tell the old address too, otherwise a mistyped new address means the real owner never hears about it.
+        if (previousEmail is not null)
+        {
+            await userNotificationService.SendAccountUpdatedEmailAsync(previousEmail, user.Name, user.Role, changes, cancellationToken);
+        }
 
         return ToDto(user);
     }
@@ -176,5 +208,5 @@ public class UserAppService(
         await userNotificationService.SendAccountDeletedEmailAsync(user, cancellationToken);
     }
 
-    private static UserSummaryDto ToDto(User user) => new(user.Id, user.Name, user.Email, user.Role, user.CreatedAt, user.MustChangePassword, user.PasswordExpiresAt);
+    private static UserSummaryDto ToDto(User user) => new(user.Id, user.Name, user.Email, user.PhoneNumber, user.Nin, user.Role, user.CreatedAt, user.MustChangePassword, user.PasswordExpiresAt);
 }

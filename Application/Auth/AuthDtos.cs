@@ -2,7 +2,7 @@ using AgrismartAPI.Domain.Users;
 
 namespace AgrismartAPI.Application.Auth;
 
-public record RegisterRequest(string Name, string Email, string Password, UserRole Role);
+public record RegisterRequest(string Name, string Email, string Password, UserRole Role, string? PhoneNumber = null, string? Nin = null);
 
 public record LoginRequest(string Email, string Password);
 

@@ -39,19 +39,50 @@ public class UserNotificationService(IEmailSender emailSender, IOptions<AppLinks
         return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
     }
 
-    public Task SendCredentialsUpdatedEmailAsync(User user, IReadOnlyList<string> changes, CancellationToken cancellationToken = default)
+    public Task SendCredentialsUpdatedEmailAsync(User user, IReadOnlyList<string> changes, CancellationToken cancellationToken = default) =>
+        SendAccountUpdatedEmailAsync(user.Email, user.Name, user.Role, changes, cancellationToken);
+
+    /// <summary>
+    /// The same notice, for a recipient other than the account's current address: the address an account
+    /// has just moved away from, or the contact email of a seller profile with no linked account.
+    /// </summary>
+    public Task SendAccountUpdatedEmailAsync(string toEmail, string toName, UserRole role, IReadOnlyList<string> changes, CancellationToken cancellationToken = default) =>
+        SendUpdateNoticeAsync(toEmail, toName, role, changes, string.Empty, cancellationToken);
+
+    /// <summary>The update notice plus the admin-issued temporary password. Only ever send this to the account's current address.</summary>
+    public Task SendCredentialsUpdatedWithTemporaryPasswordEmailAsync(User user, IReadOnlyList<string> changes, string temporaryPassword, CancellationToken cancellationToken = default)
     {
-        var subject = "Your AgrismartAPI account credentials were updated";
-        var changeList = string.Concat(changes.Select(change => $"<li>{Encode(change)}</li>"));
+        var passwordHtml = $"<p>Your new temporary password is: <strong>{Encode(temporaryPassword)}</strong></p>";
+        return SendUpdateNoticeAsync(user.Email, user.Name, user.Role, changes, passwordHtml, cancellationToken);
+    }
+
+    public Task SendSellerProfileDeletedEmailAsync(string toEmail, string toName, UserRole role, string sellerName, CancellationToken cancellationToken = default)
+    {
+        var subject = "Your AgrismartAPI seller profile has been deleted";
         var html = $"""
-            <p>Hello {Encode(user.Name)},</p>
-            <p>The following changes were made to your AgrismartAPI account:</p>
-            <ul>{changeList}</ul>
+            <p>Hello {Encode(toName)},</p>
+            <p>The seller profile <strong>{Encode(sellerName)}</strong> has been deleted from AgrismartAPI.</p>
             <p>If you did not request this change, please contact an administrator immediately.</p>
-            {AccessLinksHtml(user.Role)}
+            {AccessLinksHtml(role)}
             """;
 
-        return emailSender.SendAsync(user.Email, user.Name, subject, html, cancellationToken);
+        return emailSender.SendAsync(toEmail, toName, subject, html, cancellationToken);
+    }
+
+    private Task SendUpdateNoticeAsync(string toEmail, string toName, UserRole role, IReadOnlyList<string> changes, string extraHtml, CancellationToken cancellationToken)
+    {
+        var subject = "Your AgrismartAPI account was updated";
+        var changeList = string.Concat(changes.Select(change => $"<li>{Encode(change)}</li>"));
+        var html = $"""
+            <p>Hello {Encode(toName)},</p>
+            <p>The following changes were made to your AgrismartAPI account:</p>
+            <ul>{changeList}</ul>
+            {extraHtml}
+            <p>If you did not request this change, please contact an administrator immediately.</p>
+            {AccessLinksHtml(role)}
+            """;
+
+        return emailSender.SendAsync(toEmail, toName, subject, html, cancellationToken);
     }
 
     public Task SendAccountDeletedEmailAsync(User user, CancellationToken cancellationToken = default)

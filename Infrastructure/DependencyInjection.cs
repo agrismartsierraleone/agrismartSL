@@ -69,7 +69,8 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddHttpClient<IEmailSender, SendGridEmailSender>();
+        // Emails are sent inline, so keep this short or a SendGrid outage holds up the API response.
+        services.AddHttpClient<IEmailSender, SendGridEmailSender>(client => client.Timeout = TimeSpan.FromSeconds(10));
 
         // Real pest/disease detection when a Kindwise API key is configured; otherwise fall back to
         // canned samples so local dev keeps working without a kindwise.com account.

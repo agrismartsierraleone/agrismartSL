@@ -254,12 +254,14 @@ Sellers get `403` on create/update/delete — tutorial content is Admin-only.
 | PUT | `/users/{id}/credentials` | Admin |
 | DELETE | `/users/{id}` | Admin |
 
-`UserSummaryDto`: `{ "id", "name", "email", "role", "createdAt", "mustChangePassword", "passwordExpiresAt": "iso date | null" }`
-Create user body: `{ "name", "email", "password" (min 8 chars), "role": "buyer | seller | admin" }`
+`UserSummaryDto`: `{ "id", "name", "email", "phoneNumber": "string | null", "nin": "string | null", "role", "createdAt", "mustChangePassword", "passwordExpiresAt": "iso date | null" }`
+Create user body: `{ "name", "email", "password" (min 8 chars), "role": "buyer | seller | admin", "phoneNumber" (max 30 chars), "nin" (max 50 chars) }` — `phoneNumber` and `nin` are required for buyers and sellers (`400` if missing or blank) and optional for admins.
 Change role body: `{ "role": "buyer | seller | admin" }`
-Update credentials body: `{ "name": "string?", "email": "string?", "newPassword": "string? (min 8 chars)" }` — send only the fields being changed; omitted/blank fields are left as-is. Returns `200` with the updated `UserSummaryDto` even if nothing changed (no email/audit entry is generated in that case). Setting `newPassword` here always issues it as a fresh 24-hour temporary password (`mustChangePassword` flips back to `true`) — same as a brand-new account.
+Update credentials body: `{ "name": "string?", "email": "string?", "newPassword": "string? (min 8 chars)", "phoneNumber": "string?", "nin": "string?" }` — send only the fields being changed; omitted/blank fields are left as-is. Returns `200` with the updated `UserSummaryDto` even if nothing changed (no email/audit entry is generated in that case). Setting `newPassword` here always issues it as a fresh 24-hour temporary password (`mustChangePassword` flips back to `true`) — same as a brand-new account.
 
 Use `mustChangePassword` / `passwordExpiresAt` in the users grid to show something like "Pending first login (expires in 6h)" for accounts still on their temporary password — helpful for an admin chasing up a seller who hasn't logged in yet.
+
+`phoneNumber` and `nin` are `null` for accounts created before these fields existed. Use `PUT /users/{id}/credentials` to fill them in.
 
 `DELETE /users/{id}` permanently removes the account (`204` on success). Two guardrails to surface in the UI, both come back as normal error responses (see Error format below), not crashes:
 - **`400`** — an admin cannot delete their own account. Disable/hide the delete action on the currently-logged-in admin's own row.
@@ -275,13 +277,17 @@ The backend sends transactional email (via SendGrid) on the account actions belo
 |---|---|---|
 | `POST /users` (any role, incl. seller) | the new user | Their email, the temporary password just set, their role, an access link, and a note that it expires in 24 hours |
 | `PUT /users/{id}/role` (role actually changes) | the affected user | Notice that their role changed, and an access link |
-| `PUT /users/{id}/credentials` (any field actually changes) | the affected user | A bullet list of what changed (name/email/password) and an access link |
+| `PUT /users/{id}/credentials` (any field actually changes) | the affected user | A bullet list of what changed (name/email/password/phone number/NIN) and an access link. A password reset also includes the new temporary password. The phone number and NIN values are never included in the email or the audit log. If the email address changed, the previous address gets the same notice, without the password |
+| `PUT /sellers/{id}` (any field actually changes, whether an admin or the seller made the update) | the linked user, or the profile's contact email (old and new) if it has no linked account | A bullet list of what changed (name/contact email/contact phone/location) and an access link. No email is sent if the profile has no linked account and no contact email |
+| `DELETE /sellers/{id}` | the linked user, or the profile's contact email if it has no linked account | Notice that the seller profile was deleted |
 | `POST /auth/change-password` | the user themselves | Confirmation that their password was changed (sent even though they made the change) |
 | `DELETE /users/{id}` | the deleted user | Notice that their account was deleted and they can no longer log in |
 
+Emails are best-effort: the change has already been saved when the email is sent, so if SendGrid rejects it or can't be reached, the API still returns success and the failure is only recorded in the server logs. If a user says an email never arrived, check the logs. For a lost temporary password, issue a fresh one with `PUT /users/{id}/credentials`.
+
 "Access link" is role-aware: Sellers and Admins get the web login URL (they use this admin app); a Buyer created via `POST /users` gets Play Store / App Store links instead, since buyers use the mobile app. Buyers who self-register via `POST /auth/register` (mobile-only, see `README.mobile.md`) get the same welcome-with-credentials email, but without the temporary-password/24h-expiry language, since they chose their own permanent password.
 
-There's no "resend welcome email" endpoint — if a seller says they didn't get it (or their temporary password expired), an admin can re-issue one by making a `PUT /users/{id}/credentials` call with a `newPassword` — this both sets a fresh 24-hour temporary password and re-sends a credentials-style notice.
+There's no "resend welcome email" endpoint — if a seller says they didn't get it (or their temporary password expired), an admin can re-issue one by making a `PUT /users/{id}/credentials` call with a `newPassword` — this sets a fresh 24-hour temporary password and emails it to them.
 
 ---
 

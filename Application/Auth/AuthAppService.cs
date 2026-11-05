@@ -28,13 +28,15 @@ public class AuthAppService(
             throw new ValidationException("Only buyer accounts can self-register. Ask an administrator to create a seller or admin account.");
         }
 
+        UserProfileValidator.EnsureValid(request.Role, request.PhoneNumber, request.Nin);
+
         var existing = await userRepository.GetByEmailAsync(request.Email, cancellationToken);
         if (existing is not null)
         {
             throw new ConflictException("An account with this email already exists.");
         }
 
-        var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role);
+        var user = User.Register(request.Name, request.Email, passwordHasher.Hash(request.Password), request.Role, phoneNumber: request.PhoneNumber, nin: request.Nin);
         await userRepository.AddAsync(user, cancellationToken);
 
         await auditLogAppService.LogAsync(user.Id, user.Email, "UserRegistered", user.Id, $"Self-registered as {user.Role}.", cancellationToken);

@@ -20,9 +20,9 @@ Tokens expire in **10 minutes**. There is no refresh-token endpoint — on a `40
 ### POST /auth/register
 Body:
 ```json
-{ "name": "string", "email": "string", "password": "string (min 8 chars)", "role": "buyer" }
+{ "name": "string", "email": "string", "password": "string (min 8 chars)", "role": "buyer", "phoneNumber": "string (max 30 chars)", "nin": "string (max 50 chars)" }
 ```
-Always register customers with `"role": "buyer"`.
+Always register customers with `"role": "buyer"`. `phoneNumber` and `nin` are both required: a missing or blank value returns `400`.
 Response `200`:
 ```json
 { "token": "jwt", "user": { "id": "guid", "name": "string", "email": "string", "role": "buyer", "mustChangePassword": false } }

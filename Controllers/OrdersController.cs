@@ -41,6 +41,24 @@ public class OrdersController(OrderAppService orderAppService, ICurrentUserServi
         return Ok(orders);
     }
 
+    /// <summary>Moves an order to Confirmed, Shipped or Delivered. Steps cannot be undone.</summary>
+    [HttpPut("{orderId:guid}/delivery-status")]
+    [Authorize(Roles = "Seller,Admin")]
+    public async Task<ActionResult<OrderDto>> UpdateDeliveryStatus(Guid orderId, UpdateDeliveryStatusRequest request, CancellationToken cancellationToken)
+    {
+        var order = await orderAppService.UpdateDeliveryStatusAsync(orderId, request, cancellationToken);
+        return Ok(order);
+    }
+
+    /// <summary>Recent orders worth a second look. These are flags for review, not proof of fraud.</summary>
+    [HttpGet("alerts")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<IReadOnlyList<OrderAlertDto>>> GetAlerts([FromServices] OrderAlertService orderAlertService, CancellationToken cancellationToken)
+    {
+        var alerts = await orderAlertService.GetAlertsAsync(cancellationToken);
+        return Ok(alerts);
+    }
+
     /// <summary>Orders containing at least one item sold by the calling seller, scoped to just that seller's items.</summary>
     [HttpGet("mine-as-seller")]
     [Authorize(Roles = "Seller")]

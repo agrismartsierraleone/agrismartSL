@@ -35,8 +35,19 @@ public class Order : Entity
     /// <summary>Set once a Monime checkout session has been created for this order (<see cref="PaymentMethod.MonimeOnline"/> only).</summary>
     public Guid? CheckoutSessionId { get; private set; }
 
-    private Order(Guid userId, IReadOnlyList<OrderItem> items, PaymentMethod paymentMethod, DateTimeOffset? holdExpiresAt)
+    /// <summary>Where the order is going. Null for orders placed before delivery details existed, or when the buyer collects.</summary>
+    public string? DeliveryDistrict { get; private init; }
+
+    public string? DeliveryAddress { get; private init; }
+
+    public DateTimeOffset? ShippedAt { get; private set; }
+
+    public DateTimeOffset? DeliveredAt { get; private set; }
+
+    private Order(Guid userId, IReadOnlyList<OrderItem> items, PaymentMethod paymentMethod, DateTimeOffset? holdExpiresAt, string? deliveryDistrict, string? deliveryAddress)
     {
+        DeliveryDistrict = deliveryDistrict;
+        DeliveryAddress = deliveryAddress;
         UserId = userId;
         Items = items;
         TotalAmount = items.Sum(item => item.LineTotal);
@@ -55,7 +66,7 @@ public class Order : Entity
         SellerPayments = new List<SellerPayment>();
     }
 
-    public static Order Create(Guid userId, IReadOnlyList<OrderItem> items, PaymentMethod paymentMethod)
+    public static Order Create(Guid userId, IReadOnlyList<OrderItem> items, PaymentMethod paymentMethod, string? deliveryDistrict = null, string? deliveryAddress = null)
     {
         if (items.Count == 0)
         {
@@ -71,7 +82,48 @@ public class Order : Entity
             ? DateTimeOffset.UtcNow.Add(UnpaidHoldLifetime)
             : (DateTimeOffset?)null;
 
-        return new Order(userId, items, paymentMethod, holdExpiresAt);
+        return new Order(userId, items, paymentMethod, holdExpiresAt, deliveryDistrict, deliveryAddress?.Trim());
+    }
+
+    /// <summary>
+    /// Moves the order forward: Pending, Confirmed, Shipped, Delivered. Steps can be skipped but never undone.
+    /// Unless the buyer pays in person, payment must come first, otherwise goods could leave unpaid and
+    /// confirming an unpaid-hold order would stop its hold from expiring.
+    /// </summary>
+    public void AdvanceDelivery(OrderStatus next)
+    {
+        if (next is not (OrderStatus.Confirmed or OrderStatus.Shipped or OrderStatus.Delivered))
+        {
+            throw new InvalidOperationException("Status must be Confirmed, Shipped or Delivered.");
+        }
+
+        if (Status == OrderStatus.Cancelled)
+        {
+            throw new InvalidOperationException("A cancelled order cannot be delivered.");
+        }
+
+        if (next <= Status)
+        {
+            throw new InvalidOperationException($"This order is already {Status}.");
+        }
+
+        if (PaymentMethod != PaymentMethod.CashOnPickup && PaymentStatus == PaymentStatus.Pending)
+        {
+            throw new InvalidOperationException("This order has not been paid yet.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (next >= OrderStatus.Shipped)
+        {
+            ShippedAt ??= now;
+        }
+
+        if (next == OrderStatus.Delivered)
+        {
+            DeliveredAt = now;
+        }
+
+        Status = next;
     }
 
     /// <summary>Links this order to the Monime checkout session created for it. <see cref="PaymentMethod.MonimeOnline"/> only.</summary>

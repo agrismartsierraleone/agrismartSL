@@ -4,7 +4,7 @@ using AgrismartAPI.Domain.Orders;
 namespace AgrismartAPI.Application.Checkout;
 
 /// <summary>Optional overrides for where Monime redirects the browser; falls back to configured defaults when omitted.</summary>
-public record CreateCheckoutSessionRequest(string? SuccessUrl = null, string? CancelUrl = null);
+public record CreateCheckoutSessionRequest(string? SuccessUrl = null, string? CancelUrl = null, string? DeliveryDistrict = null, string? DeliveryAddress = null);
 
 /// <summary>Thin, customer-facing view of a Monime checkout session — just enough to redirect and show status.</summary>
 public record CheckoutSessionDto(

@@ -1,6 +1,6 @@
 # AgrismartAPI — Customer Mobile App Integration Guide (Flutter)
 
-Audience: the **Buyer/Customer** role — browsing products, placing orders, watching tutorials, and scanning plants.
+Audience: the **Buyer/Customer** role — browsing products, placing orders, watching tutorials, scanning plants, and checking market prices.
 
 Base URLs (local dev, from `Properties/launchSettings.json`):
 
@@ -629,6 +629,203 @@ curl -X POST http://localhost:5150/harvest/predict \
 # 4. Check it's there
 curl http://localhost:5150/harvest/history -H "Authorization: Bearer $TOKEN"
 ```
+
+---
+
+## Market Prices — `/market-prices`
+
+Buyers can see the latest prices of **crops, fertilizers and seeds** in each district, and download them as a PDF. Admins enter the prices on the web app, so this screen is read-only.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| GET | `/market-prices?category=&crop=&district=&date=` | Public | The price board for one category |
+| GET | `/market-prices/pdf?category=&crop=&district=&date=` | Public | The same board as a PDF file |
+| GET | `/market-prices/history?category=&crop=&district=&days=30` | Public | One item in one district, for a chart |
+| GET | `/logistics/districts` | Public | District names for the filter, as a list of strings |
+
+None of these need a token, and an expired token sent with them is ignored. They can never return `401`, so they won't trigger `forceLogout()`.
+
+**Release:** these prices, the PDF and the categories are not on the live server until the backend is deployed. Until then, test against a local API.
+
+### Categories
+
+| `category` | Shows | Example names |
+|---|---|---|
+| `crop` (the default) | Crops | `Maize`, `Local Rice` |
+| `fertilizer` | Fertilizers | `NPK 15-15-15`, `Urea` |
+| `seed` | Seeds | `Maize`, `NERICA 4` |
+
+- **One category at a time:** the board, the PDF and the history each show one category. If `category` is left out they show crops, so the app keeps working before these changes are made.
+- **The name is still in `crop`:** for a fertilizer or a seed, the `crop` field holds its name, such as `Urea`. The field wasn't renamed, so existing code keeps working.
+- **The same name can be in two categories:** `Maize` can be both a crop and a seed, with separate prices. Always send the category with the name.
+
+### Adding fertilizers and seeds to the app
+
+The screen already exists in `lib/features/market_prices`. It needs these changes. The code below hasn't been compiled against the app, so treat it as a guide.
+
+**1. `domain/market_price.dart`:** add the category, and add it to `MarketPrice`.
+
+```dart
+enum MarketPriceCategory {
+  crop('Crop', 'crops'),
+  fertilizer('Fertilizer', 'fertilizers'),
+  seed('Seed', 'seeds');
+
+  const MarketPriceCategory(this.label, this.plural);
+
+  final String label;
+  final String plural;
+
+  static MarketPriceCategory fromJson(String? value) => switch (value) {
+    'fertilizer' => MarketPriceCategory.fertilizer,
+    'seed' => MarketPriceCategory.seed,
+    _ => MarketPriceCategory.crop,
+  };
+}
+
+// In MarketPrice: a new final field, constructor argument and fromJson line.
+final MarketPriceCategory category;
+
+category: MarketPriceCategory.fromJson(json['category'] as String?),
+```
+
+**2. `data/market_prices_repository.dart`:** send the category on every call. `MarketPriceCategory.name` gives `crop`, `fertilizer` or `seed`.
+
+```dart
+Map<String, String> _filters({required MarketPriceCategory category, String? crop, String? district}) => {
+  'category': category.name,
+  'crop': ?crop,
+  'district': ?district,
+};
+
+Future<MarketPriceBoard> fetchBoard({required MarketPriceCategory category, String? crop, String? district}) async {
+  final filters = _filters(category: category, crop: crop, district: district);
+  final json = await _client.get('/market-prices', query: filters);
+  return MarketPriceBoard.fromJson(json as Map<String, dynamic>);
+}
+
+Future<MarketPriceHistory> fetchHistory({
+  required MarketPriceCategory category,
+  required String crop,
+  required String district,
+  required int days,
+}) async {
+  final json = await _client.get(
+    '/market-prices/history',
+    query: {'category': category.name, 'crop': crop, 'district': district, 'days': days},
+  );
+  return MarketPriceHistory.fromJson(json as Map<String, dynamic>);
+}
+
+Uri pdfUri({required MarketPriceCategory category, String? crop, String? district}) {
+  final filters = _filters(category: category, crop: crop, district: district);
+  return Uri.parse('${ApiConfig.baseUrl}/market-prices/pdf').replace(queryParameters: filters);
+}
+```
+
+**3. `application/market_prices_providers.dart`:** add the category to the filter. Changing category must clear the selected name, because a fertilizer name means nothing on the seed board.
+
+```dart
+typedef MarketPriceQuery = ({MarketPriceCategory category, String? crop, String? district});
+
+class MarketPriceFilter extends Notifier<MarketPriceQuery> {
+  @override
+  MarketPriceQuery build() => (category: MarketPriceCategory.crop, crop: null, district: null);
+
+  void setCategory(MarketPriceCategory category) =>
+      state = (category: category, crop: null, district: state.district);
+
+  void setCrop(String? crop) => state = (category: state.category, crop: crop, district: state.district);
+
+  void setDistrict(String? district) => state = (category: state.category, crop: state.crop, district: district);
+
+  void clear() => state = (category: state.category, crop: null, district: null);
+}
+```
+
+Then update these providers:
+
+- **`marketPriceBoardProvider`:** pass `category: filter.category` to `fetchBoard`.
+- **`marketPriceCropsProvider`:** this fills the name filter, so it must follow the category. Use `ref.watch(marketPriceFilterProvider.select((f) => f.category))` and pass it to `fetchBoard`.
+- **`marketPriceHistoryProvider`:** add `MarketPriceCategory category` to `MarketPriceHistoryQuery` and pass it to `fetchHistory`.
+
+**4. `presentation/screens/market_prices_screen.dart`:**
+
+- Add a three-way selector above `_Filters`, using a `SegmentedButton<MarketPriceCategory>` that calls `setCategory`.
+- In `_Filters`, change `label: 'Crop'` to `filter.category.label`, and `allLabel: 'All crops'` to `'All ${filter.category.plural}'`.
+- In the download code, pass `category: filter.category` to `pdfUri`.
+- In `_scope`, change `'All crops'` the same way as `allLabel`.
+- Leave the category out of the `filtered` check: choosing a category isn't a filter to clear, and `clear()` keeps it.
+
+**5. `presentation/widgets/`:**
+
+- **`market_price_board.dart`:** change the table's `Crop` heading to `category.label`.
+- **`price_history_sheet.dart`:** add `category: item.category` to the history query.
+- **`market_price_visuals.dart`:** `MarketCropImage` looks for a crop photo, and there are none for fertilizers. Show an icon for anything that isn't a crop, as below.
+
+```dart
+item.category == MarketPriceCategory.crop
+    ? MarketCropImage(crop: item.crop)
+    : Icon(item.category == MarketPriceCategory.seed ? Icons.grass_rounded : Icons.science_rounded)
+```
+
+### Reading the board
+
+```json
+{
+  "currency": "SLE",
+  "asOf": "2026-11-06",
+  "items": [
+    {
+      "id": "guid",
+      "category": "fertilizer",
+      "crop": "NPK 15-15-15",
+      "district": "Bo",
+      "price": 850.5,
+      "unit": "50 kg bag",
+      "priceDate": "2026-11-06",
+      "previousPrice": 820,
+      "previousDate": "2026-11-04",
+      "change": 30.5,
+      "changePercent": 3.7,
+      "trend": "up"
+    }
+  ]
+}
+```
+
+| Parameter | Rule |
+|---|---|
+| `category` | Optional, defaults to `crop`. Must be `crop`, `fertilizer` or `seed`. Anything else returns `400` |
+| `crop` | Optional. The name of the crop, fertilizer or seed. The whole name is matched, ignoring upper and lower case. It is not a partial search |
+| `district` | Optional. Must be a Sierra Leone district, or a town such as `Freetown`. Anything else returns `400` |
+| `date` | Optional, `yyyy-MM-dd`, defaults to today. Shows the board as it stood on that day |
+
+- **Name filter:** there is no separate list of names. Fill the filter with the distinct `crop` values from an unfiltered board in the selected category.
+- **One row per item and district:** each row is the latest price from the last 30 days. Older prices drop off the board.
+- **Always show `priceDate`:** it can be older than `asOf`, and an old price must never look like today's.
+- **`trend`:** `up`, `down`, `flat` or `new`. For `new` there is no earlier price in the same unit, so `previousPrice`, `previousDate`, `change` and `changePercent` are `null`. Show "New" in that case. Use an arrow or text as well as color.
+- **Empty board:** `items` is `[]` until an admin records prices in that category, or when no price matches the filters. Show an empty message and disable the Download PDF button.
+
+`GET /market-prices/history` needs `crop` and `district`, `days` can be 1 to 365, and `category` defaults to `crop`. Points are oldest first. The unit can change between points, so check it before drawing them on one line:
+
+```json
+{ "category": "fertilizer", "crop": "Urea", "district": "Bo", "currency": "SLE", "points": [{ "date": "2026-11-04", "price": 820, "unit": "50 kg bag" }] }
+```
+
+### Downloading the PDF
+
+`GET /market-prices/pdf` takes the same filters as the board and returns:
+
+- **Content:** an A4 PDF with `Content-Type: application/pdf`, titled `Crop prices`, `Fertilizer prices` or `Seed prices`. It lists the name, district, unit, price, change and date, and runs over as many pages as it needs.
+- **File name:** for example `agrismart-fertilizer-prices-2026-11-06.pdf`, using the category and board date, sent in the `Content-Disposition` header.
+- **One category per file:** to give someone all three, download three PDFs.
+- **No prices:** still `200`, with a one-page PDF saying no prices were recorded.
+- **Unknown category or district:** `400`. An unknown district returns the usual `{ "message": ... }` JSON. An unknown category can't come from the selector, and returns ASP.NET's standard validation response.
+
+Open the link in the phone's browser, which then handles the download. `url_launcher` is already in the app, so this needs no new package, and no token is needed. Don't request the PDF through `ApiClient.get`, because it decodes every response as JSON.
+
+`ApiConfig.baseUrl` is `http://localhost:5150`, and on a physical phone `localhost` is the phone itself. Point it at a reachable address, such as your computer's network IP, to test on a device. The Android emulator reaches your computer at `10.0.2.2`.
 
 ---
 

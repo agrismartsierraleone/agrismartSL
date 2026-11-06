@@ -57,7 +57,7 @@ public class AssistantToolsTests(AssistantApiFactory factory) : IClassFixture<As
         var tools = CreateTools(scope, Guid.NewGuid()).CreateTools().Cast<AIFunction>().ToList();
 
         Assert.Equal(
-            ["get_farm_profile", "get_farm_records", "get_weather_forecast", "calculate_fertilizer", "predict_harvest"],
+            ["get_farm_profile", "get_farm_records", "get_weather_forecast", "calculate_fertilizer", "predict_harvest", "search_products", "get_my_orders", "get_my_seller_earnings", "estimate_delivery_cost", "search_jobs"],
             tools.Select(t => t.Name));
         Assert.All(tools, tool =>
         {

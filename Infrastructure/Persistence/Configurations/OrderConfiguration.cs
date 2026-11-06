@@ -18,6 +18,8 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.Property(order => order.PaymentMethod).HasConversion<string>().HasMaxLength(20);
         builder.Property(order => order.PaymentStatus).HasConversion<string>().HasMaxLength(20);
+        builder.Property(order => order.DeliveryDistrict).HasMaxLength(50);
+        builder.Property(order => order.DeliveryAddress).HasMaxLength(300);
 
         var itemsProperty = builder.Property(order => order.Items)
             .HasColumnName("Items")

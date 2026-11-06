@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 using AgrismartAPI.Application.Abstractions;
+using AgrismartAPI.Application.AiTools;
 using AgrismartAPI.Application.Assistant;
+using AgrismartAPI.Application.Logistics;
 using AgrismartAPI.Domain.Assistant;
 using AgrismartAPI.Infrastructure.Persistence.Repositories;
 using Anthropic;
@@ -22,6 +24,7 @@ public static class AssistantServiceCollectionExtensions
     public static IServiceCollection AddAssistant(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<AssistantOptions>(configuration.GetSection(AssistantOptions.SectionName));
+        services.Configure<DeliveryOptions>(configuration.GetSection(DeliveryOptions.SectionName));
         AddAssistantRateLimiting(services, configuration);
 
         if (!configuration.GetValue<bool>(AssistantOptions.FeatureFlagKey))
@@ -33,6 +36,7 @@ public static class AssistantServiceCollectionExtensions
         services.AddScoped<IConversationStore, ConversationStore>();
         services.AddScoped<AssistantTools>();
         services.AddScoped<AssistantService>();
+        services.AddScoped<AiToolsService>();
 
         services.AddSingleton<IChatClient>(serviceProvider =>
         {

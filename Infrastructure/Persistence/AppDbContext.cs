@@ -3,6 +3,7 @@ using AgrismartAPI.Domain.Carts;
 using AgrismartAPI.Domain.Checkout;
 using AgrismartAPI.Domain.Fertilizer;
 using AgrismartAPI.Domain.Harvest;
+using AgrismartAPI.Domain.Jobs;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
 using AgrismartAPI.Domain.Scans;
@@ -17,6 +18,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<User> Users => Set<User>();
     public DbSet<PlantScan> PlantScans => Set<PlantScan>();
     public DbSet<MarketProduct> MarketProducts => Set<MarketProduct>();
+    public DbSet<MarketPrice> MarketPrices => Set<MarketPrice>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Seller> Sellers => Set<Seller>();
     public DbSet<TutorialVideo> TutorialVideos => Set<TutorialVideo>();
@@ -33,6 +35,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<FertilizerCropProfile> FertilizerCrops => Set<FertilizerCropProfile>();
     public DbSet<FertilizerProduct> FertilizerProducts => Set<FertilizerProduct>();
     public DbSet<FertilizerRecommendation> FertilizerRecommendations => Set<FertilizerRecommendation>();
+    public DbSet<JobPost> JobPosts => Set<JobPost>();
+    public DbSet<WorkerProfile> WorkerProfiles => Set<WorkerProfile>();
+    public DbSet<JobApplication> JobApplications => Set<JobApplication>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

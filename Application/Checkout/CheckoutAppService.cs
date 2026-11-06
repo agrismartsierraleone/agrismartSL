@@ -39,7 +39,7 @@ public class CheckoutAppService(
         }
 
         var orderItems = cart.Items.Select(item => new OrderItemRequest(item.ProductId, item.Quantity)).ToList();
-        var order = await orderAppService.CreateMonimeOrderAsync(userId, orderItems, cancellationToken);
+        var order = await orderAppService.CreateMonimeOrderAsync(userId, orderItems, request.DeliveryDistrict, request.DeliveryAddress, cancellationToken);
 
         var idempotencyKey = Guid.NewGuid().ToString();
         var lineItems = order.Items

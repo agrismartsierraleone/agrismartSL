@@ -65,6 +65,9 @@ public static class DependencyInjection
         services.AddScoped<IFertilizerProductRepository, FertilizerProductRepository>();
         services.AddScoped<IFertilizerRecommendationRepository, FertilizerRecommendationRepository>();
         services.AddScoped<IMyFarmRepository, MyFarmRepository>();
+        services.AddScoped<AgrismartAPI.Domain.Jobs.IJobRepository, JobRepository>();
+        services.AddScoped<AgrismartAPI.Domain.Market.IMarketPriceRepository, MarketPriceRepository>();
+        services.AddSingleton<IMarketPricePdfRenderer, AgrismartAPI.Infrastructure.Market.MarketPricePdfRenderer>();
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IJwtTokenGenerator, JwtTokenGenerator>();

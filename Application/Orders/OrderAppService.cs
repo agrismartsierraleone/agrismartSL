@@ -1,4 +1,7 @@
+using AgrismartAPI.Application.Abstractions;
+using AgrismartAPI.Application.Audit;
 using AgrismartAPI.Application.Common;
+using AgrismartAPI.Domain.Logistics;
 using AgrismartAPI.Domain.Market;
 using AgrismartAPI.Domain.Orders;
 using AgrismartAPI.Domain.Users;
@@ -9,8 +12,12 @@ public class OrderAppService(
     IOrderRepository orderRepository,
     IMarketRepository marketRepository,
     IUserRepository userRepository,
-    ISellerRepository sellerRepository)
+    ISellerRepository sellerRepository,
+    ICurrentUserService currentUser,
+    AuditLogAppService auditLogAppService)
 {
+    private const int MaxDeliveryAddressLength = 300;
+
     public async Task<OrderDto> CreateOrderAsync(Guid userId, CreateOrderRequest request, CancellationToken cancellationToken = default)
     {
         if (request.Items.Count == 0)
@@ -22,6 +29,8 @@ public class OrderAppService(
         {
             throw new ValidationException("Use POST /checkout/sessions to pay online via Monime — this endpoint is for cash-on-pickup or unpaid-hold orders only.");
         }
+
+        var deliveryDistrict = ResolveDeliveryDistrict(request.DeliveryDistrict, request.DeliveryAddress);
 
         var items = new List<OrderItem>();
         foreach (var line in request.Items)
@@ -37,14 +46,74 @@ public class OrderAppService(
             items.Add(new OrderItem(product.Id, product.Name, product.Price, line.Quantity, product.SellerId, product.Seller.Name));
         }
 
-        var order = Order.Create(userId, items, request.PaymentMethod);
+        var order = Order.Create(userId, items, request.PaymentMethod, deliveryDistrict, request.DeliveryAddress);
         await orderRepository.AddAsync(order, cancellationToken);
         return ToDto(order);
     }
 
-    /// <summary>Used only by <c>CheckoutAppService</c> to place the underlying order for a Monime checkout session.</summary>
-    internal async Task<OrderDto> CreateMonimeOrderAsync(Guid userId, IReadOnlyList<OrderItemRequest> items, CancellationToken cancellationToken = default)
+    /// <summary>Moves an order along its delivery steps. Sellers can update only orders made up entirely of their own items.</summary>
+    public async Task<OrderDto> UpdateDeliveryStatusAsync(Guid orderId, UpdateDeliveryStatusRequest request, CancellationToken cancellationToken = default)
     {
+        var order = await orderRepository.GetByIdAsync(orderId, cancellationToken)
+                    ?? throw new NotFoundException($"Order '{orderId}' was not found.");
+
+        if (currentUser.Role != UserRole.Admin)
+        {
+            var seller = await sellerRepository.GetByUserIdAsync(currentUser.UserId, cancellationToken);
+            if (seller is null || order.Items.All(item => item.SellerId != seller.Id))
+            {
+                throw new NotFoundException($"Order '{orderId}' was not found.");
+            }
+
+            // One status covers the whole order, so one seller must not mark another seller's goods as sent.
+            if (order.Items.Any(item => item.SellerId != seller.Id))
+            {
+                throw new ForbiddenException("This order includes other sellers' items, so an administrator must update it.");
+            }
+        }
+
+        var previousStatus = order.Status;
+        try
+        {
+            order.AdvanceDelivery(request.Status);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new ConflictException(exception.Message);
+        }
+
+        await orderRepository.UpdateAsync(order, cancellationToken);
+
+        await auditLogAppService.LogAsync(
+            currentUser.UserId, currentUser.Email, "OrderDeliveryStatusChanged", order.UserId,
+            $"Order {order.Id} changed from {previousStatus} to {order.Status}.", cancellationToken);
+
+        return ToDto(order);
+    }
+
+    /// <summary>The district's standard name. Null when the buyer gave no delivery details.</summary>
+    private static string? ResolveDeliveryDistrict(string? district, string? address)
+    {
+        if (address?.Trim().Length > MaxDeliveryAddressLength)
+        {
+            throw new ValidationException($"deliveryAddress must be at most {MaxDeliveryAddressLength} characters.");
+        }
+
+        if (string.IsNullOrWhiteSpace(district))
+        {
+            return null;
+        }
+
+        return SierraLeoneDistricts.Find(district)?.Name
+               ?? throw new ValidationException("deliveryDistrict must be a Sierra Leone district.");
+    }
+
+    /// <summary>Used only by <c>CheckoutAppService</c> to place the underlying order for a Monime checkout session.</summary>
+    internal async Task<OrderDto> CreateMonimeOrderAsync(
+        Guid userId, IReadOnlyList<OrderItemRequest> items, string? deliveryDistrict = null, string? deliveryAddress = null, CancellationToken cancellationToken = default)
+    {
+        var resolvedDistrict = ResolveDeliveryDistrict(deliveryDistrict, deliveryAddress);
+
         var orderItems = new List<OrderItem>();
         foreach (var line in items)
         {
@@ -54,7 +123,7 @@ public class OrderAppService(
             orderItems.Add(new OrderItem(product.Id, product.Name, product.Price, line.Quantity, product.SellerId, product.Seller.Name));
         }
 
-        var order = Order.Create(userId, orderItems, PaymentMethod.MonimeOnline);
+        var order = Order.Create(userId, orderItems, PaymentMethod.MonimeOnline, resolvedDistrict, deliveryAddress);
         await orderRepository.AddAsync(order, cancellationToken);
         return ToDto(order);
     }
@@ -130,7 +199,11 @@ public class OrderAppService(
         order.PaymentMethod,
         order.PaymentStatus,
         order.HoldExpiresAt,
-        order.CheckoutSessionId);
+        order.CheckoutSessionId,
+        order.DeliveryDistrict,
+        order.DeliveryAddress,
+        order.ShippedAt,
+        order.DeliveredAt);
 
     private static OrderWithCustomerDto ToDtoWithCustomer(Order order, User? user) => new(
         order.Id,
@@ -142,7 +215,11 @@ public class OrderAppService(
         order.PaymentMethod,
         order.PaymentStatus,
         order.HoldExpiresAt,
-        order.CheckoutSessionId);
+        order.CheckoutSessionId,
+        order.DeliveryDistrict,
+        order.DeliveryAddress,
+        order.ShippedAt,
+        order.DeliveredAt);
 
     private static OrderForSellerDto ToDtoForSeller(Order order, Guid sellerId, User? user)
     {
@@ -155,6 +232,10 @@ public class OrderAppService(
             order.Status,
             order.CreatedAt,
             order.PaymentMethod,
-            order.PaymentStatus);
+            order.PaymentStatus,
+            order.DeliveryDistrict,
+            order.DeliveryAddress,
+            order.ShippedAt,
+            order.DeliveredAt);
     }
 }

@@ -6,6 +6,8 @@ using AgrismartAPI.Application.Checkout;
 using AgrismartAPI.Application.Diagnoses;
 using AgrismartAPI.Application.Fertilizer;
 using AgrismartAPI.Application.Harvest;
+using AgrismartAPI.Application.Jobs;
+using AgrismartAPI.Application.Logistics;
 using AgrismartAPI.Application.Market;
 using AgrismartAPI.Application.MyFarm;
 using AgrismartAPI.Application.Orders;
@@ -24,6 +26,7 @@ public static class DependencyInjection
         services.AddScoped<DiagnosisAppService>();
         services.AddScoped<ScanAppService>();
         services.AddScoped<MarketAppService>();
+        services.AddScoped<MarketPriceAppService>();
         services.AddScoped<CategoryAppService>();
         services.AddScoped<SellerAppService>();
         services.AddScoped<TutorialAppService>();
@@ -38,6 +41,9 @@ public static class DependencyInjection
         services.AddScoped<FertilizerAppService>();
         services.AddScoped<IFertilizerCalculatorService, FertilizerCalculatorService>();
         services.AddScoped<MyFarmAppService>();
+        services.AddScoped<OrderAlertService>();
+        services.AddScoped<DeliveryEstimateService>();
+        services.AddScoped<JobAppService>();
         services.TryAddSingleton(TimeProvider.System);
 
         return services;

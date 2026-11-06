@@ -2,12 +2,19 @@ using System.ComponentModel;
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Application.Common;
 using AgrismartAPI.Application.Fertilizer;
+using AgrismartAPI.Application.Jobs;
+using AgrismartAPI.Application.Logistics;
+using AgrismartAPI.Application.Orders;
 using AgrismartAPI.Domain.Assistant;
 using AgrismartAPI.Domain.Fertilizer;
 using AgrismartAPI.Domain.Harvest;
+using AgrismartAPI.Domain.Logistics;
+using AgrismartAPI.Domain.Market;
+using AgrismartAPI.Domain.Orders;
 using AgrismartAPI.Domain.Scans;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace AgrismartAPI.Application.Assistant;
 
@@ -26,9 +33,17 @@ public class AssistantTools(
     FertilizerAppService fertilizerAppService,
     ICropRepository cropRepository,
     IHarvestPredictor harvestPredictor,
+    IMarketRepository marketRepository,
+    ISellerRepository sellerRepository,
+    IOrderRepository orderRepository,
+    IOptions<DeliveryOptions> deliveryOptions,
+    DeliveryEstimateService deliveryEstimateService,
+    JobAppService jobAppService,
     ILogger<AssistantTools> logger)
 {
     private const int HistoryItems = 10;
+    private const int MaxProductResults = 10;
+    private const int MaxJobResults = 10;
 
     public IList<AITool> CreateTools() =>
     [
@@ -42,8 +57,135 @@ public class AssistantTools(
         AIFunctionFactory.Create(CalculateFertilizerAsync, "calculate_fertilizer",
             "Calculates how much fertilizer to buy and apply, with bags, schedule and cost. Always use this; never calculate amounts yourself."),
         AIFunctionFactory.Create(PredictHarvestAsync, "predict_harvest",
-            "Predicts the harvest date window for a crop from its planting date and the farm location. Always use this; never estimate dates yourself.")
+            "Predicts the harvest date window for a crop from its planting date and the farm location. Always use this; never estimate dates yourself."),
+        AIFunctionFactory.Create(SearchProductsAsync, "search_products",
+            "Searches the AgriSmart marketplace for products, optionally near a district. Returns names, prices, units, sellers and seller locations."),
+        AIFunctionFactory.Create(GetMyOrdersAsync, "get_my_orders",
+            "Gets the user's own recent orders with their payment status, delivery status and delivery destination."),
+        AIFunctionFactory.Create(GetMySellerEarningsAsync, "get_my_seller_earnings",
+            "For sellers: gets the user's own earnings, split into received, confirmed and pending, plus best-selling products."),
+        AIFunctionFactory.Create(EstimateDeliveryCost, "estimate_delivery_cost",
+            "Estimates a delivery cost between two Sierra Leone districts for a weight in kilograms. Always use this; never estimate costs yourself."),
+        AIFunctionFactory.Create(SearchJobsAsync, "search_jobs",
+            "Searches open farm jobs, optionally by district or skill.")
     ];
+
+    // ---------- search_products ----------
+
+    public async Task<object> SearchProductsAsync(
+        [Description("What to look for, e.g. \"rice\" or \"maize seed\".")] string query,
+        [Description("Optional Sierra Leone district or town to search near.")] string? district = null,
+        CancellationToken cancellationToken = default)
+    {
+        var words = (query ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length == 0)
+        {
+            return new ToolError("Ask the user what product they want.");
+        }
+
+        var nearby = SierraLeoneDistricts.Find(district);
+        if (!string.IsNullOrWhiteSpace(district) && nearby is null)
+        {
+            return new ToolError($"'{district}' is not a known Sierra Leone district or town. Ask the user for their district.");
+        }
+
+        var products = await marketRepository.GetAllAsync(null, cancellationToken);
+        var matches = products
+            .Where(product => words.All(word =>
+                product.Name.Contains(word, StringComparison.OrdinalIgnoreCase)
+                || product.Category.Name.Contains(word, StringComparison.OrdinalIgnoreCase)
+                || product.Description.Contains(word, StringComparison.OrdinalIgnoreCase)))
+            .Select(product => (Product: product, SellerDistrict: SierraLeoneDistricts.Find(product.Seller.Location)?.Name))
+            .OrderByDescending(match => nearby is not null && match.SellerDistrict == nearby.Name)
+            .ThenBy(match => match.Product.Price)
+            .Take(MaxProductResults)
+            .Select(match => new ProductSearchResult(
+                match.Product.Id, match.Product.Name, match.Product.Category.Name, match.Product.Price, match.Product.Unit,
+                match.Product.Seller.Name, match.Product.Seller.Location, match.SellerDistrict is not null && match.SellerDistrict == nearby?.Name))
+            .ToList();
+
+        return new ProductSearchResults(matches, deliveryOptions.Value.Currency, matches.Count == 0 ? "No matching products were found." : null);
+    }
+
+    // ---------- get_my_orders ----------
+
+    public async Task<MyOrdersResult> GetMyOrdersAsync(CancellationToken cancellationToken = default)
+    {
+        var orders = await orderRepository.GetAllForUserAsync(currentUser.UserId, cancellationToken);
+
+        return new MyOrdersResult(
+            orders.Take(HistoryItems).Select(order => new MyOrderInfo(
+                order.Id,
+                order.CreatedAt,
+                order.TotalAmount,
+                order.Items.Select(item => $"{item.Quantity} x {item.ProductName}").ToList(),
+                order.PaymentMethod.ToString(),
+                order.PaymentStatus.ToString(),
+                order.Status.ToString(),
+                order.HoldExpiresAt,
+                order.DeliveryDistrict,
+                order.ShippedAt,
+                order.DeliveredAt)).ToList(),
+            deliveryOptions.Value.Currency,
+            orders.Count == 0 ? "This user has no orders." : null);
+    }
+
+    // ---------- get_my_seller_earnings ----------
+
+    public async Task<object> GetMySellerEarningsAsync(
+        [Description("How many past days to include, 1-366 (default 30).")] int days = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var seller = await sellerRepository.GetByUserIdAsync(currentUser.UserId, cancellationToken);
+        if (seller is null)
+        {
+            return new ToolError("This user has no seller profile, so there are no earnings to show.");
+        }
+
+        var orders = await orderRepository.GetAllAsync(cancellationToken);
+        return SellerEarningsCalculator.Calculate(orders, seller.Id, Math.Clamp(days, 1, 366), DateTimeOffset.UtcNow);
+    }
+
+    // ---------- estimate_delivery_cost ----------
+
+    public object EstimateDeliveryCost(
+        [Description("Sierra Leone district or town the goods leave from.")] string fromDistrict,
+        [Description("Sierra Leone district or town the goods go to.")] string toDistrict,
+        [Description("Total weight in kilograms.")] double weightKg)
+    {
+        try
+        {
+            return deliveryEstimateService.Estimate(new DeliveryEstimateRequest(fromDistrict, toDistrict, weightKg));
+        }
+        catch (ValidationException exception)
+        {
+            return new ToolError(exception.Message, exception.Errors);
+        }
+        catch (ConflictException exception)
+        {
+            return new ToolError(exception.Message);
+        }
+    }
+
+    // ---------- search_jobs ----------
+
+    public async Task<object> SearchJobsAsync(
+        [Description("Optional Sierra Leone district or town.")] string? district = null,
+        [Description("Optional skill, e.g. \"harvesting\".")] string? skill = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var jobs = await jobAppService.GetOpenAsync(district, skill, cancellationToken);
+            return jobs.Take(MaxJobResults)
+                .Select(job => new JobSearchResult(job.Id, job.Title, job.District, job.WorkersNeeded, job.StartDate, job.Pay, job.Skills))
+                .ToList();
+        }
+        catch (ValidationException exception)
+        {
+            return new ToolError(exception.Message, exception.Errors);
+        }
+    }
 
     // ---------- get_farm_profile ----------
 
@@ -293,6 +435,27 @@ public class AssistantTools(
 // ---------- Tool results (serialized to JSON for the model) ----------
 
 public record ToolError(string Error, IReadOnlyDictionary<string, string[]>? Errors = null, IReadOnlyList<string>? ValidCropIds = null);
+
+public record ProductSearchResult(Guid ProductId, string Name, string Category, decimal Price, string Unit, string Seller, string? SellerLocation, bool InRequestedDistrict);
+
+public record ProductSearchResults(IReadOnlyList<ProductSearchResult> Products, string Currency, string? Note);
+
+public record MyOrderInfo(
+    Guid OrderId,
+    DateTimeOffset PlacedAt,
+    decimal Total,
+    IReadOnlyList<string> Items,
+    string PaymentMethod,
+    string PaymentStatus,
+    string DeliveryStatus,
+    DateTimeOffset? UnpaidHoldExpiresAt,
+    string? DeliveryDistrict,
+    DateTimeOffset? ShippedAt,
+    DateTimeOffset? DeliveredAt);
+
+public record MyOrdersResult(IReadOnlyList<MyOrderInfo> Orders, string Currency, string? Note);
+
+public record JobSearchResult(Guid JobId, string Title, string District, int WorkersNeeded, DateOnly? StartDate, string? Pay, IReadOnlyList<string> Skills);
 
 public record FarmCropInfo(string CropId, DateOnly? PlantingDate, double? PlotSizeHectares);
 

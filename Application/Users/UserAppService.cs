@@ -146,6 +146,43 @@ public class UserAppService(
         return ToDto(user);
     }
 
+    /// <summary>Self-service: the signed-in user updates their own phone number and/or NIN. Sends a notice for any change made.</summary>
+    public async Task<UserSummaryDto> UpdateMyAccountAsync(UpdateMyAccountRequest request, CancellationToken cancellationToken = default)
+    {
+        var user = await userRepository.GetByIdAsync(currentUser.UserId, cancellationToken)
+                   ?? throw new NotFoundException($"User '{currentUser.UserId}' was not found.");
+
+        UserProfileValidator.EnsureLengths(request.PhoneNumber, request.Nin);
+
+        var changes = new List<string>();
+
+        // These lines also go into the audit log and the notification email, so they never include the values.
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber) && request.PhoneNumber.Trim() != user.PhoneNumber)
+        {
+            user.ChangePhoneNumber(request.PhoneNumber);
+            changes.Add("Phone number was updated.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Nin) && request.Nin.Trim() != user.Nin)
+        {
+            user.ChangeNin(request.Nin);
+            changes.Add("NIN was updated.");
+        }
+
+        if (changes.Count == 0)
+        {
+            return ToDto(user);
+        }
+
+        await userRepository.UpdateAsync(user, cancellationToken);
+
+        await auditLogAppService.LogAsync(user.Id, user.Email, "UserAccountUpdated", user.Id, string.Join(" ", changes), cancellationToken);
+
+        await userNotificationService.SendCredentialsUpdatedEmailAsync(user, changes, cancellationToken);
+
+        return ToDto(user);
+    }
+
     public async Task<UserSummaryDto> ChangeRoleAsync(Guid userId, ChangeUserRoleRequest request, CancellationToken cancellationToken = default)
     {
         var user = await userRepository.GetByIdAsync(userId, cancellationToken)

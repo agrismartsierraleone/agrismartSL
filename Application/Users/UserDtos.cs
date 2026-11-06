@@ -11,3 +11,6 @@ public record CreateUserRequest(string Name, string Email, string Password, User
 
 /// <summary>Admin-only: updates a user's name, email, password, phone number and/or NIN. Any changed field triggers a notification email.</summary>
 public record UpdateUserCredentialsRequest(string? Name, string? Email, string? NewPassword, string? PhoneNumber = null, string? Nin = null);
+
+/// <summary>Self-service: any field left out keeps its current value.</summary>
+public record UpdateMyAccountRequest(string? PhoneNumber, string? Nin);

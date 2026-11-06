@@ -118,17 +118,20 @@ Distances use each district's main town and a road factor, so they are approxima
 | GET | `/jobs/{id}` | Any signed-in user |
 | POST | `/jobs/{id}/close` | Admin |
 | DELETE | `/jobs/{id}` | Admin |
-| POST | `/jobs/{id}/apply` | Any signed-in user with a worker profile |
+| POST | `/jobs/{id}/apply` | Buyers and sellers with a worker profile |
 | GET | `/jobs/{id}/applicants` | Admin |
-| GET, PUT | `/jobs/worker-profile` | The user themselves |
+| GET | `/jobs/worker-profile` | The user themselves |
+| PUT | `/jobs/worker-profile` | Buyers and sellers, for themselves |
 
 Job body: `{ "title", "description", "district", "workersNeeded", "skills": ["string"], "startDate": "yyyy-MM-dd?", "pay": "string?", "contactPhone": "string?", "contactEmail": "string?" }`
 
-Worker profile body: `{ "headline", "bio", "district", "skills": ["string"], "isAvailable": true }`
+Worker profile body: `{ "headline", "bio", "district", "skills": ["string"], "isAvailable": true, "phoneNumber": "string?", "nin": "string?" }`
+
+`phoneNumber` and `nin` update the worker's account, and leaving one out keeps the current value. `GET` and `PUT` return `phoneNumber`, `email` and `nin`. The email is read-only here because it is the login, and passwords are not part of the worker profile.
 
 Apply body: `{ "message": "string?" }`. Applying twice or to a closed job returns `409`.
 
-A worker's phone number is shared only with admins, through the applicants list of a job they apply to.
+A worker's phone number and email are shared only with admins, through the applicants list of a job they apply to.
 
 ### POST /api/ai/job-draft (Admin)
 

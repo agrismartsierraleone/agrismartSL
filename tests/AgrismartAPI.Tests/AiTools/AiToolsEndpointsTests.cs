@@ -402,7 +402,7 @@ public class AiToolsEndpointsTests(AiToolsApiFactory factory) : IClassFixture<Ai
         Assert.Equal(HttpStatusCode.OK, (await worker.PutAsJsonAsync("/jobs/worker-profile", WorkerBody())).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await worker.PostAsJsonAsync($"/jobs/{jobId}/apply", new { message = "Hi" })).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await worker.PostAsJsonAsync($"/jobs/{jobId}/apply", new { message = "Again" })).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await poster.PostAsJsonAsync($"/jobs/{jobId}/apply", new { })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await poster.PostAsJsonAsync($"/jobs/{jobId}/apply", new { })).StatusCode);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await ClientFor(otherToken).GetAsync($"/jobs/{jobId}/applicants")).StatusCode);
         var applicants = (await ReadJsonAsync(await poster.GetAsync($"/jobs/{jobId}/applicants"))).AsArray();

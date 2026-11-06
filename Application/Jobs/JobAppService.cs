@@ -1,6 +1,7 @@
 using System.Net.Mail;
 using AgrismartAPI.Application.Abstractions;
 using AgrismartAPI.Application.Common;
+using AgrismartAPI.Application.Users;
 using AgrismartAPI.Domain.Jobs;
 using AgrismartAPI.Domain.Logistics;
 using AgrismartAPI.Domain.Users;
@@ -33,16 +34,27 @@ public record JobDto(
     JobStatus Status,
     DateTimeOffset CreatedAt);
 
-public record SaveWorkerProfileRequest(string? Headline, string? Bio, string? District, IReadOnlyList<string>? Skills, bool IsAvailable = true);
+/// <summary>
+/// PhoneNumber and Nin update the worker's account, not a copy on the profile. Leave either out to keep the current value.
+/// </summary>
+public record SaveWorkerProfileRequest(
+    string? Headline,
+    string? Bio,
+    string? District,
+    IReadOnlyList<string>? Skills,
+    bool IsAvailable = true,
+    string? PhoneNumber = null,
+    string? Nin = null);
 
-public record WorkerProfileDto(string Headline, string Bio, string District, IReadOnlyList<string> Skills, bool IsAvailable, DateTimeOffset UpdatedAt);
+/// <summary>PhoneNumber, Email and Nin come from the account. Email is read-only here because it is the login.</summary>
+public record WorkerProfileDto(string Headline, string Bio, string District, IReadOnlyList<string> Skills, bool IsAvailable, DateTimeOffset UpdatedAt, string? PhoneNumber, string Email, string? Nin);
 
 public record ApplyToJobRequest(string? Message);
 
 /// <summary>Only admins see these, because they include the applicant's phone number.</summary>
-public record JobApplicantDto(Guid ApplicationId, Guid WorkerUserId, string Name, string? PhoneNumber, string? Headline, string? District, IReadOnlyList<string> Skills, string? Message, DateTimeOffset AppliedAt);
+public record JobApplicantDto(Guid ApplicationId, Guid WorkerUserId, string Name, string? PhoneNumber, string? Email, string? Headline, string? District, IReadOnlyList<string> Skills, string? Message, DateTimeOffset AppliedAt);
 
-public class JobAppService(IJobRepository jobRepository, IUserRepository userRepository, ICurrentUserService currentUser)
+public class JobAppService(IJobRepository jobRepository, IUserRepository userRepository, ICurrentUserService currentUser, UserAppService userAppService)
 {
     private const int MaxSkills = 20;
     private const int MaxSkillLength = 50;
@@ -105,6 +117,10 @@ public class JobAppService(IJobRepository jobRepository, IUserRepository userRep
         var district = RequireDistrict(request.District);
         var skills = CleanSkills(request.Skills);
 
+        // After the profile checks, so a rejected profile never changes the account.
+        var account = await userAppService.UpdateMyAccountAsync(
+            new UpdateMyAccountRequest(request.PhoneNumber, request.Nin), cancellationToken);
+
         var profile = await jobRepository.GetWorkerProfileAsync(currentUser.UserId, cancellationToken);
         if (profile is null)
         {
@@ -117,7 +133,7 @@ public class JobAppService(IJobRepository jobRepository, IUserRepository userRep
             await jobRepository.UpdateWorkerProfileAsync(profile, cancellationToken);
         }
 
-        return ToDto(profile);
+        return ToDto(profile, account.PhoneNumber, account.Email, account.Nin);
     }
 
     public async Task<WorkerProfileDto> GetMyWorkerProfileAsync(CancellationToken cancellationToken = default)
@@ -125,7 +141,10 @@ public class JobAppService(IJobRepository jobRepository, IUserRepository userRep
         var profile = await jobRepository.GetWorkerProfileAsync(currentUser.UserId, cancellationToken)
                       ?? throw new NotFoundException("You have not created a worker profile yet.");
 
-        return ToDto(profile);
+        var user = await userRepository.GetByIdAsync(currentUser.UserId, cancellationToken)
+                   ?? throw new NotFoundException("Your account was not found.");
+
+        return ToDto(profile, user.PhoneNumber, user.Email, user.Nin);
     }
 
     public async Task ApplyAsync(Guid jobId, ApplyToJobRequest request, CancellationToken cancellationToken = default)
@@ -170,7 +189,7 @@ public class JobAppService(IJobRepository jobRepository, IUserRepository userRep
             var user = users.GetValueOrDefault(application.WorkerUserId);
             var profile = await jobRepository.GetWorkerProfileAsync(application.WorkerUserId, cancellationToken);
             applicants.Add(new JobApplicantDto(
-                application.Id, application.WorkerUserId, user?.Name ?? "Unknown", user?.PhoneNumber,
+                application.Id, application.WorkerUserId, user?.Name ?? "Unknown", user?.PhoneNumber, user?.Email,
                 profile?.Headline, profile?.District, profile?.Skills ?? [], application.Message, application.CreatedAt));
         }
 
@@ -254,6 +273,6 @@ public class JobAppService(IJobRepository jobRepository, IUserRepository userRep
         job.Id, job.PostedByUserId, job.Title, job.Description, job.District, job.WorkersNeeded,
         job.Skills, job.StartDate, job.Pay, job.ContactPhone, job.ContactEmail, job.Status, job.CreatedAt);
 
-    private static WorkerProfileDto ToDto(WorkerProfile profile) => new(
-        profile.Headline, profile.Bio, profile.District, profile.Skills, profile.IsAvailable, profile.UpdatedAt);
+    private static WorkerProfileDto ToDto(WorkerProfile profile, string? phoneNumber, string email, string? nin) => new(
+        profile.Headline, profile.Bio, profile.District, profile.Skills, profile.IsAvailable, profile.UpdatedAt, phoneNumber, email, nin);
 }

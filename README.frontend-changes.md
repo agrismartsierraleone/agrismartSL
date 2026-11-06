@@ -199,7 +199,7 @@ Replies can contain Markdown, such as bold text and lists, so render it or strip
 
 ## M6. Farm jobs
 
-Any signed-in user can browse jobs, create a worker profile and apply. Only admins can post, so **remove any "post a job" screen from the mobile app**. `POST /jobs` returns `403` for buyers.
+Any signed-in user can browse jobs. Buyers and sellers can create a worker profile and apply. Only admins can post, so **remove any "post a job" screen from the mobile app**. `POST /jobs` returns `403` for buyers.
 
 | Action | Request |
 |---|---|
@@ -245,6 +245,39 @@ Show these fields from the job response:
 
 Limits: headline 200 characters, bio 1000. Only workers with `isAvailable: true` appear in matches.
 
+#### Phone number, email and NIN
+
+Only buyers and sellers can save a worker profile or apply for a job. For an admin, `PUT /jobs/worker-profile` and `POST /jobs/{id}/apply` return `403`, so don't show them the form or the Apply button.
+
+`GET` and `PUT /jobs/worker-profile` now return `phoneNumber`, `email` and `nin`, so fill the form from those. `phoneNumber` and `nin` can be `null` on older accounts.
+
+The same `PUT` can also update the phone number and NIN. Add only the fields that changed:
+
+```json
+{
+  "headline": "Harvest worker",
+  "bio": "Ten seasons of rice harvesting.",
+  "district": "Kenema",
+  "skills": ["harvesting"],
+  "isAvailable": true,
+  "phoneNumber": "+23276111222",
+  "nin": "SL1234567"
+}
+```
+
+| Field | Rule | Error |
+|---|---|---|
+| `phoneNumber` | Up to 30 characters | `400` |
+| `nin` | Up to 50 characters | `400` |
+
+**Show the email as read-only.** It's the worker's login, so it can't be changed here, and an `email` sent in this request is ignored. Only an admin can change it.
+
+These are the worker's account details, not a separate copy, and leaving a field out keeps its current value. AgriSmart emails a notice of each change.
+
+If any check fails, nothing is saved, including the headline and other profile fields.
+
+Passwords are not part of the worker profile. Use `POST /auth/change-password`.
+
 To help workers write one, ask a few simple questions and send the answers to `POST /api/ai/worker-profile-draft`:
 
 ```json
@@ -274,11 +307,12 @@ Send `experience` or `skills`, at least. Let the worker edit the result, then sa
 | Situation | Response |
 |---|---|
 | No worker profile | `400`: send the user to create one |
+| Admin saving a worker profile or applying | `403`: hide the form and the Apply button |
 | Own job | `400`: hide the button |
 | Already applied | `409` |
 | Job is closed | `409` |
 
-Applying shares the worker's phone number with admins, so say this on the apply screen. The API has no list of a worker's own applications yet, so handle the `409` to show they've already applied.
+Applying shares the worker's phone number and email with admins, so say this on the apply screen. The API has no list of a worker's own applications yet, so handle the `409` to show they've already applied.
 
 ## Mobile checklist
 
@@ -528,7 +562,8 @@ The worker profile and apply request formats are in [M6](#m6-farm-jobs), and the
 - **No profile yet:** Apply opens the profile form, then goes straight to the application for that job.
 - **After applying:** the job shows an Applied badge. The API has no list of a worker's own applications, so the badge is lost on reload, and applying again shows "already applied".
 - **Job closed meanwhile:** the `409` message is shown and the list refreshes.
-- **Privacy:** the application form says that applying shares the seller's phone number with admins.
+- **Privacy:** the application form says that applying shares the seller's phone number and email with admins.
+- **Account details:** the profile form has phone number and NIN fields and shows the email as read-only, following [the rules in M6](#phone-number-email-and-nin). Add `allowSqlChars` to the phone input, or the `+` is removed.
 - **Skills:** these are added one at a time, because `appSqlSafe` blocks commas.
 
 ### Admin view

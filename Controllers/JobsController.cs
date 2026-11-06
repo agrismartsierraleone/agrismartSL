@@ -38,7 +38,9 @@ public class JobsController(JobAppService jobAppService) : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Buyers and sellers only.</summary>
     [HttpPost("{id:guid}/apply")]
+    [Authorize(Roles = "Buyer,Seller")]
     public async Task<IActionResult> Apply(Guid id, ApplyToJobRequest request, CancellationToken cancellationToken)
     {
         await jobAppService.ApplyAsync(id, request, cancellationToken);
@@ -54,7 +56,9 @@ public class JobsController(JobAppService jobAppService) : ControllerBase
     public async Task<ActionResult<WorkerProfileDto>> GetMyWorkerProfile(CancellationToken cancellationToken) =>
         Ok(await jobAppService.GetMyWorkerProfileAsync(cancellationToken));
 
+    /// <summary>Buyers and sellers only. Also updates their phone number and NIN when sent.</summary>
     [HttpPut("worker-profile")]
+    [Authorize(Roles = "Buyer,Seller")]
     public async Task<ActionResult<WorkerProfileDto>> SaveMyWorkerProfile(SaveWorkerProfileRequest request, CancellationToken cancellationToken) =>
         Ok(await jobAppService.SaveMyWorkerProfileAsync(request, cancellationToken));
 }
